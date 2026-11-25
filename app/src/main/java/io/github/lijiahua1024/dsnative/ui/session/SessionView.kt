@@ -720,17 +720,37 @@ fun UserBubble(
         if (msg.files.isNotEmpty()) {
             val hasDoc = msg.files.any { !it.isImage }
             val imgSize = if (hasDoc) 64.dp else 120.dp
-            androidx.compose.foundation.layout.FlowRow(
-                Modifier.fillMaxWidth().padding(
-                    start = 20.dp,
-                    end = 20.dp,
-                    bottom = if (msg.content.isNotEmpty()) 8.dp else 0.dp,
-                ),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            // ref Web：附件容器与气泡文本一样绑定长按菜单，纯图片/文件消息才能唤起编辑入口
+            Box(
+                Modifier
+                    .onPlaced { coordsRef.coords = it }
+                    .combinedClickable(
+                        indication = null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        onClick = {},
+                        onLongClick = {
+                            val coords = coordsRef.coords
+                            val rect = if (coords != null && coords.isAttached) {
+                                val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
+                                androidx.compose.ui.geometry.Rect(
+                                    p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
+                                )
+                            } else androidx.compose.ui.geometry.Rect.Zero
+                            onMenu(msg, rect)
+                        })
             ) {
-                msg.files.forEach { file ->
-                    MessageFileView(sessionId, file, uploadReply, imgSize, chatStore)
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(
+                        start = 20.dp,
+                        end = 20.dp,
+                        bottom = if (msg.content.isNotEmpty()) 12.dp else 0.dp,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    msg.files.forEach { file ->
+                        MessageFileView(sessionId, file, uploadReply, imgSize, chatStore)
+                    }
                 }
             }
         }

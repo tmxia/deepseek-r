@@ -57,9 +57,12 @@ android {
                 "\"${project.findProperty("apiOrigin") ?: "https://api.deepseek.com"}\"")
         }
         release {
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            // 未提供外部 release 签名（CI secrets 缺失或本地未配置）时，回退 AGP
+            // 默认 debug keystore 签名，避免产出未签名 APK（安装报「未包含任何证书」）。
+            signingConfig = if (hasReleaseSigning)
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
             buildConfigField("String", "API_ORIGIN", "\"https://api.deepseek.com\"")
             
             isMinifyEnabled = true

@@ -853,11 +853,9 @@ fun ImagePreviewDialog(
                 w.decorView.removeOnLayoutChangeListener(layoutListener)
             }
         }
-        Box(Modifier.fillMaxSize().background(Color(0xFF111317))
+        Box(Modifier.fillMaxSize().background(Color.Black)
             .graphicsLayer {
                 alpha = viewerEnter.value
-                val s = 0.96f + 0.04f * viewerEnter.value
-                scaleX = s; scaleY = s
             }) {
             val activeCrop = cropState
             if (activeCrop != null) {
@@ -898,11 +896,16 @@ fun ImagePreviewDialog(
                     }
                 }
                 is PreviewDecode.Ready -> {
-                    // the content rect extends under the nav bar, so the centered
-                    // image sits ~34px above the ref's viewport center
+                    // 图片解码完成后再淡入，避免 Loading 占位与位图硬切造成的闪跳
+                    val imgAlpha = remember { androidx.compose.animation.core.Animatable(0f) }
+                    LaunchedEffect(previewDecode.bitmap) {
+                        imgAlpha.animateTo(1f,
+                            androidx.compose.animation.core.tween(160))
+                    }
                     Image(
                         previewDecode.bitmap, item.name,
-                        Modifier.fillMaxSize().padding(top = 25.dp)
+                        Modifier.fillMaxSize()
+                            .graphicsLayer { alpha = imgAlpha.value }
                             .clickable(onClick = onClose),
                         contentScale = ContentScale.Fit,
                     )
