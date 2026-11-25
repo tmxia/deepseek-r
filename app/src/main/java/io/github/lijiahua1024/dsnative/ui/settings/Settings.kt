@@ -20,6 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.lijiahua1024.dsnative.data.KeepAlive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -554,6 +558,19 @@ private fun SettingsRootPage(
     checkingUpdate: Boolean = false,
     onCheckUpdate: () -> Unit = {},
 ) {
+    val ctx = LocalContext.current
+    // 后台保活 = 电池优化白名单状态；回前台时按系统实际状态回填开关
+    var keepAliveEnabled by remember { mutableStateOf(KeepAlive.isIgnoringBatteryOptimizations(ctx)) }
+    val keepAliveOwner = LocalLifecycleOwner.current
+    DisposableEffect(keepAliveOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                keepAliveEnabled = KeepAlive.isIgnoringBatteryOptimizations(ctx)
+            }
+        }
+        keepAliveOwner.lifecycle.addObserver(observer)
+        onDispose { keepAliveOwner.lifecycle.removeObserver(observer) }
+    }
     SettingsGroup(Strings.get("settingsGroupAccount"), card, muted) {
         SettingsRow(c, muted, Strings.get("settingsAccountPage"), { ProfileGlyph(c.labelPrimary) }) { onPage("account") }
         SettingsRow(c, muted, Strings.get("settingsDataPage"), { Icon(painterResource(R.drawable.ic_data), null, tint = c.labelPrimary, modifier = Modifier.size(18.dp)) }) { onPage("data") }
@@ -569,6 +586,20 @@ private fun SettingsRootPage(
             { Icon(painterResource(R.drawable.ic_font_size), null, tint = c.labelPrimary, modifier = Modifier.size(19.dp)) }) { onPage("font") }
         SettingsRow(c, muted, Strings.get("settingsPersonalizationPage"),
             { Icon(painterResource(R.drawable.ic_wand), null, tint = c.labelPrimary, modifier = Modifier.size(20.dp)) }) { onPage("personalization") }
+        Row(
+            Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
+                .padding(start = 16.dp, end = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(Strings.get("keepAlive"), fontSize = 16.sp, color = c.labelPrimary,
+                modifier = Modifier.weight(1f))
+            RefSwitch(keepAliveEnabled) { on ->
+                // 乐观置位：拉起的是系统异步授权/设置页，最终由回前台 ON_RESUME 重查校正
+                keepAliveEnabled = on
+                if (on) KeepAlive.requestIgnoreBatteryOptimizations(ctx)
+                else KeepAlive.openBatteryOptimizationSettings(ctx)
+            }
+        }
     }
     SettingsGroup(Strings.get("settingsGroupVoice"), card, muted) {
         SettingsRow(c, muted, Strings.get("settingsTtsVoice"),

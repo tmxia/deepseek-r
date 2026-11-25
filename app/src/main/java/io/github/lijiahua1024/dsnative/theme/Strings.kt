@@ -250,6 +250,7 @@ object Strings {
             "settingsAgreementsPage" -> pick("服务协议", "Service agreement")
             "settingsGroupAccount" -> pick("账户", "Account")
             "settingsGroupApp" -> pick("应用", "App")
+            "keepAlive" -> pick("后台保活", "Background keep-alive")
             "settingsGroupVoice" -> pick("语音", "Voice")
             "settingsGroupAbout" -> pick("关于", "About")
             "settingsVersion" -> pick("版本信息", "Version")
