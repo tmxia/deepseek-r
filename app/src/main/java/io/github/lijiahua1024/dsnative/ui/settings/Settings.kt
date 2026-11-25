@@ -39,7 +39,10 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.draw.rotate
+import androidx.compose.animation.core.animateFloat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -47,6 +50,7 @@ import io.github.lijiahua1024.dsnative.theme.dsPainterResource as painterResourc
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.R
 import io.github.lijiahua1024.dsnative.BuildConfig
@@ -753,19 +757,24 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
     var balanceNonce by remember { mutableStateOf(0) }
     var balanceData by remember(apiKey) { mutableStateOf<AccountBalance?>(null) }
     var balanceLoading by remember(apiKey) { mutableStateOf(false) }
+    var balanceRefreshing by remember { mutableStateOf(false) }
     var balanceError by remember(apiKey) { mutableStateOf<String?>(null) }
     LaunchedEffect(apiKey, balanceNonce) {
         val key = apiKey
         if (key.isNullOrEmpty()) {
-            balanceData = null; balanceError = null; balanceLoading = false; return@LaunchedEffect
+            balanceData = null; balanceError = null; balanceLoading = false; balanceRefreshing = false
+            return@LaunchedEffect
         }
         val hadData = balanceData != null
-        if (!hadData) balanceLoading = true else balanceError = null
+        // 已有旧余额：手动/后台刷新只转刷新图标、保留旧值，不把余额文本换成 loading 造成跳闪；
+        // 仅首次加载（无旧值）才进入整区 loading。
+        if (hadData) balanceRefreshing = true else balanceLoading = true
+        balanceError = null
         try {
             balanceData = fetchAccountBalance(key)
-            balanceLoading = false; balanceError = null
+            balanceLoading = false; balanceRefreshing = false; balanceError = null
         } catch (e: Exception) {
-            balanceLoading = false
+            balanceLoading = false; balanceRefreshing = false
             if (balanceData != null) return@LaunchedEffect // 已有旧余额：后台刷新失败保留旧值
             val unauthorized = e is ApiError && (e.status == 401 || e.status == 402)
             balanceError = if (unauthorized) "unauthorized" else "other"
@@ -922,6 +931,12 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
                 }
                 else -> Strings.get("balanceLoading") to muted
             }
+            val refreshTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "balanceRefresh")
+            val refreshAngle by refreshTransition.animateFloat(
+                initialValue = 0f, targetValue = 360f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.LinearEasing)),
+                label = "refreshAngle")
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(Strings.get("balanceTitle"), fontSize = 16.sp, color = c.labelPrimary,
@@ -930,8 +945,10 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         painterResource(R.drawable.ic_refresh), Strings.get("balanceRefresh"),
-                        tint = muted, modifier = Modifier.size(20.dp)
-                            .clickable(enabled = !balanceLoading) { balanceNonce++ },
+                        tint = if (balanceRefreshing) c.labelPrimary else muted,
+                        modifier = Modifier.size(20.dp)
+                            .rotate(if (balanceRefreshing) refreshAngle else 0f)
+                            .clickable(enabled = !balanceRefreshing && !balanceLoading) { balanceNonce++ },
                     )
                 }
                 if (data != null) {
@@ -1226,43 +1243,80 @@ private fun AdvancedSelector(
     onSelect: (String) -> Unit,
 ) {
     val c = DsTheme.colors
+    val density = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
     val current = options.firstOrNull { it.first == selected }?.second
-    Row(Modifier.fillMaxWidth().height(36.dp)
-        .clip(RoundedCornerShape(18.dp))
-        .background(c.selector)
-        .clickable { expanded = !expanded }
-        .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(current ?: "", fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
-            modifier = Modifier.weight(1f))
-        Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.labelSecondary,
-            modifier = Modifier.size(14.dp).rotate(90f))
+    var anchor by remember { mutableStateOf(androidx.compose.ui.unit.IntRect.Zero) }
+
+    // 浮层为独立 Popup，叠加在内容之上、不参与 Column 布局，展开不会把下方输入框/说明往下挤；
+    // 水平右对齐到 trigger 右边，垂直落在 trigger 下方。
+    val positionProvider = androidx.compose.runtime.remember(anchor) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ): androidx.compose.ui.unit.IntOffset {
+                val gap = with(density) { 8.dp.roundToPx() }
+                val right = minOf(anchor.right, windowSize.width)
+                val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+                val x = (right - popupContentSize.width).coerceIn(0, maxX)
+                val y = anchor.bottom + gap
+                return androidx.compose.ui.unit.IntOffset(x, y)
+            }
+        }
     }
-    // ref base/Select: 锚定 trigger 下方的 listbox 浮层，menu r12/padding4，选项 minH40 r10，选中项右侧打勾。
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = { expanded = false },
-        modifier = Modifier.widthIn(min = 124.dp, max = 280.dp),
-        shape = RoundedCornerShape(12.dp),
-        containerColor = c.menu,
-        border = androidx.compose.foundation.BorderStroke(1.dp, c.borderInverted),
-    ) {
-        Column(Modifier.padding(4.dp)) {
-            options.forEach { (value, label) ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .heightIn(min = 40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable { expanded = false; onSelect(value) }
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(label, fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
-                        modifier = Modifier.weight(1f))
-                    if (value == selected) {
-                        Icon(painterResource(R.drawable.ic_check), null, tint = c.labelSecondary,
-                            modifier = Modifier.size(16.dp))
+
+    Box(Modifier.fillMaxWidth()
+        .onGloballyPositioned {
+            val r = it.boundsInWindow()
+            anchor = androidx.compose.ui.unit.IntRect(
+                r.left.roundToInt(), r.top.roundToInt(), r.right.roundToInt(), r.bottom.roundToInt())
+        }) {
+        Row(Modifier.fillMaxWidth().height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(c.selector)
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(current ?: "", fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
+                modifier = Modifier.weight(1f))
+            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.labelSecondary,
+                modifier = Modifier.size(14.dp).rotate(90f))
+        }
+    }
+
+    if (expanded) {
+        androidx.compose.ui.window.Popup(
+            popupPositionProvider = positionProvider,
+            onDismissRequest = { expanded = false },
+            properties = androidx.compose.ui.window.PopupProperties(
+                focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true),
+        ) {
+            Column(
+                Modifier.widthIn(min = 124.dp, max = 280.dp)
+                    .softShadow(12.dp, 14.dp, 4.dp, color = Color.Black.copy(alpha = 0.12f))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(c.menu)
+                    .border(androidx.compose.foundation.BorderStroke(1.dp, c.borderInverted))
+                    .padding(4.dp),
+            ) {
+                options.forEach { (value, label) ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .heightIn(min = 40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { expanded = false; onSelect(value) }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(label, fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
+                            modifier = Modifier.weight(1f))
+                        if (value == selected) {
+                            Icon(painterResource(R.drawable.ic_check), null, tint = c.labelSecondary,
+                                modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
