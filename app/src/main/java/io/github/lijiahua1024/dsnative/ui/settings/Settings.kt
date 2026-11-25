@@ -699,8 +699,7 @@ private fun SettingsRow(
     Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
         .alpha(if (enabled) 1f else 0.5f)
         .background(if (pressed && enabled) DsTheme.pressTint(pressed, pressBg) else Color.Transparent)
-        .clickable(src, null, enabled = enabled, onClick = onClick)
-        .padding(start = 16.dp, end = 12.dp),
+        .padding(start = 16.dp, end = 12.dp).clickable(src, null, enabled = enabled, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically) {
         if (icon != null) {
             Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { icon() }

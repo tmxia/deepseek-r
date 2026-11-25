@@ -459,8 +459,7 @@ fun SourcesSummary(sources: List<Source>, onClick: () -> Unit) {
             .border(1.dp, androidx.compose.ui.graphics.Color(0xFFD4D4D4), RoundedCornerShape(100.dp))
             .clip(RoundedCornerShape(100.dp))
             .background(c.bgBase)
-            .clickable(onClick = onClick)
-            .padding(start = 14.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+            .padding(start = 14.dp, end = 12.dp, top = 5.dp, bottom = 5.dp).clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SiteThumbnails(sources)

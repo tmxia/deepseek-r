@@ -573,8 +573,7 @@ private fun DsModalButton(text: String, variant: DsBtn, onClick: () -> Unit) {
         .background(bg)
         .then(if (variant == DsBtn.Outlined)
             Modifier.border(1.dp, c.borderL2, RoundedCornerShape(4096.dp)) else Modifier)
-        .clickable(onClick = onClick)
-        .padding(horizontal = 14.dp, vertical = 7.dp),
+        .padding(horizontal = 14.dp, vertical = 7.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center) {
         Text(text, fontSize = 14.sp, lineHeight = 22.sp,
             fontWeight = if (variant == DsBtn.Outlined) FontWeight.Normal else FontWeight.Medium,
@@ -695,8 +694,7 @@ private fun SearchSessionRow(
         Modifier
             .fillMaxWidth()
             .clip(SiderRowShape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 12.dp),
+            .padding(horizontal = 6.dp, vertical = 12.dp).clickable(onClick = onClick),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(

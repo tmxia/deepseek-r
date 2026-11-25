@@ -314,8 +314,7 @@ private fun MermaidSegTab(
         Modifier
             .clip(RoundedCornerShape(7.dp))
             .background(if (selected) activeBg else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 5.dp),
+            .padding(horizontal = 13.dp, vertical = 5.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -337,8 +336,7 @@ private fun MermaidHeaderAction(
     Row(
         Modifier
             .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 3.dp),
+            .padding(horizontal = 4.dp, vertical = 3.dp).clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -505,8 +503,7 @@ private fun MermaidFullscreenDialog(
                             .padding(end = 16.dp, bottom = 58.dp)
                             .clip(RoundedCornerShape(22.dp))
                             .background(Color(0xFF303031))
-                            .clickable(onClick = onSave)
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = 16.dp, vertical = 10.dp).clickable(onClick = onSave),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
