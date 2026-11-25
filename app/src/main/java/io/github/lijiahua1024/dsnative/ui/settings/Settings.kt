@@ -24,6 +24,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.lijiahua1024.dsnative.data.KeepAlive
+import io.github.lijiahua1024.dsnative.data.ChatConfig
+import io.github.lijiahua1024.dsnative.data.ChatApiFormat
+import io.github.lijiahua1024.dsnative.data.chatBaseUrl
+import io.github.lijiahua1024.dsnative.data.chatFormatLabel
+import io.github.lijiahua1024.dsnative.data.resolveChatEndpoint
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -537,7 +542,8 @@ private fun SettingsLayerBody(
             checkingUpdate = checkingUpdate,
             onCheckUpdate = onCheckUpdate,
         )
-        "account" -> AccountPage(c, card, muted, settings)
+        "account" -> AccountPage(c, card, muted, settings, onPage = onPage)
+        "advanced" -> AdvancedApiPage(c, card, muted, settings, onBack = onPage)
         "data" -> DataPage(c, card, muted, settings, chatStore, onPage = onPage, onModalBlur = onModalBlur)
         "font" -> FontPage(c, card, muted, settings)
         "personalization" -> PersonalizationPage(c, card, muted, settings)
@@ -712,7 +718,7 @@ private fun SettingsRow(
 // ---- subpages (skeleton parity; per-entry polish tracked in .agent/inventory.json) ----
 
 @Composable
-private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card: Color, muted: Color, settings: SettingsStore) {
+private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card: Color, muted: Color, settings: SettingsStore, onPage: (String) -> Unit = {}) {
     val savedProfile by settings.accountProfile.collectAsState()
     var draftName by remember(savedProfile) { mutableStateOf(savedProfile.username) }
     var draftAvatar by remember(savedProfile) { mutableStateOf(savedProfile.avatarDataUrl) }
@@ -943,6 +949,8 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
         }
         SettingsRow(c, muted, Strings.get("openPlatform")) { open("https://platform.deepseek.com/api_keys") }
         SettingsRow(c, muted, Strings.get("openPlatformHelp")) { open("https://api-docs.deepseek.com/zh-cn/") }
+        SettingsRow(c, muted, Strings.get("advancedSettings"),
+            icon = { Icon(painterResource(R.drawable.ic_data), null, tint = c.labelPrimary, modifier = Modifier.size(18.dp)) }) { onPage("advanced") }
     }
 }
 
@@ -1158,6 +1166,164 @@ private fun PersonalizationPage(c: io.github.lijiahua1024.dsnative.theme.DsColor
     }
     Text(Strings.get("settingsAutoFoldCaption"), fontSize = 13.sp, lineHeight = 21.sp, color = muted,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 27.dp))
+}
+
+@Composable
+private fun AdvancedApiPage(
+    c: io.github.lijiahua1024.dsnative.theme.DsColors,
+    card: Color, muted: Color,
+    settings: SettingsStore,
+    onBack: (String) -> Unit,
+) {
+    val saved by settings.chatConfig.collectAsState()
+    var model by remember(saved) { mutableStateOf(saved.model) }
+    var format by remember(saved) { mutableStateOf(saved.format) }
+    var endpoint by remember(saved) { mutableStateOf(chatBaseUrl(saved.endpoint, saved.format) ?: "") }
+    var endpointKey by remember(saved) { mutableStateOf(saved.apiKey) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var formatPopup by remember { mutableStateOf(false) }
+
+    val customEndpoint = endpoint.trim()
+    val endpointExample = when (format) {
+        ChatApiFormat.MESSAGES -> "https://api.deepseek.com/anthropic"
+        ChatApiFormat.CHAT, ChatApiFormat.RESPONSES -> "https://api.deepseek.com"
+    }
+
+    fun persist(config: ChatConfig) {
+        if (settings.setChatConfig(config)) onBack("account")
+        else error = Strings.get("advancedSaveFailed")
+    }
+
+    fun save() {
+        val resolved = resolveChatEndpoint(endpoint, format, saved)
+        if (resolved == null) {
+            error = Strings.get("advancedInvalidEndpoint")
+            return
+        }
+        persist(
+            ChatConfig(
+                model = model.trim(),
+                endpoint = resolved,
+                format = format,
+                apiKey = if (resolved.isNotEmpty()) endpointKey.trim() else "",
+            )
+        )
+    }
+
+    SettingsGroup(null, card, muted) {
+        Row(
+            Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(Strings.get("advancedModel"), fontSize = 14.sp, color = muted, modifier = Modifier.width(96.dp))
+            androidx.compose.foundation.text.BasicTextField(
+                value = model,
+                onValueChange = { model = it; error = null },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    if (model.isEmpty()) Text("deepseek-flash", fontSize = 16.sp, color = muted)
+                    inner()
+                },
+            )
+        }
+        SettingsRow(c, muted, Strings.get("advancedProtocol"), value = chatFormatLabel(format)) {
+            formatPopup = true
+        }
+        Row(
+            Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(Strings.get("advancedEndpoint"), fontSize = 14.sp, color = muted, modifier = Modifier.width(96.dp))
+            androidx.compose.foundation.text.BasicTextField(
+                value = endpoint,
+                onValueChange = { next ->
+                    val baseChanged = chatBaseUrl(next, format) != chatBaseUrl(endpoint, format)
+                    endpoint = next
+                    if (baseChanged) endpointKey = ""
+                    error = null
+                },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    if (endpoint.isEmpty()) Text(endpointExample, fontSize = 16.sp, color = muted)
+                    inner()
+                },
+            )
+        }
+        if (customEndpoint.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(Strings.get("advancedEndpointKey"), fontSize = 14.sp, color = muted, modifier = Modifier.width(96.dp))
+                androidx.compose.foundation.text.BasicTextField(
+                    value = endpointKey,
+                    onValueChange = { endpointKey = it },
+                    singleLine = true,
+                    enabled = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
+                    modifier = Modifier.weight(1f),
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    decorationBox = { inner ->
+                        if (endpointKey.isEmpty()) Text(Strings.get("apiKeyPlaceholder"), fontSize = 16.sp, color = muted)
+                        inner()
+                    },
+                )
+            }
+            Text(Strings.get("advancedProviderHint"), fontSize = 13.sp, lineHeight = 21.sp, color = muted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+        }
+    }
+    Text(
+        Strings.get(if (customEndpoint.isEmpty()) "advancedDefaultHint" else "advancedEndpointHint"),
+        fontSize = 13.sp, lineHeight = 21.sp, color = muted,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+    )
+    error?.let {
+        Text(it, fontSize = 13.sp, color = c.stateErrorPrimary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 27.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            Strings.get("advancedReset"),
+            fontSize = 15.sp, color = muted,
+            modifier = Modifier.clickable { persist(ChatConfig()) },
+        )
+        Spacer(Modifier.weight(1f))
+        Text(
+            Strings.get("advancedSave"),
+            fontSize = 16.sp, fontWeight = FontWeight.Medium, color = c.brandText,
+            modifier = Modifier.clickable { save() },
+        )
+    }
+
+    if (formatPopup) {
+        ChoicePopup(
+            c, card, muted,
+            title = Strings.get("advancedProtocol"),
+            options = ChatApiFormat.entries.map { it.name to chatFormatLabel(it) },
+            selected = format.name,
+            onConfirm = { id ->
+                format = ChatApiFormat.valueOf(id)
+                formatPopup = false
+                error = null
+            },
+            onDismiss = { formatPopup = false },
+        )
+    }
 }
 
 @Composable

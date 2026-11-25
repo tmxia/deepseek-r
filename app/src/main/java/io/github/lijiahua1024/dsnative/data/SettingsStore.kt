@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 
 enum class ThemePreference { LIGHT, DARK, SYSTEM }
@@ -81,6 +82,9 @@ class SettingsStore(context: Context) {
 
     private val _accountProfile = MutableStateFlow(readAccountProfile())
     val accountProfile: StateFlow<AccountProfile> = _accountProfile
+
+    private val _chatConfig = MutableStateFlow(readChatConfig(prefs.getString("chat-config", null)))
+    val chatConfig: StateFlow<ChatConfig> = _chatConfig
 
     private fun readAccountProfile(): AccountProfile = try {
         val raw = prefs.getString("account-profile", null) ?: return AccountProfile()
@@ -202,6 +206,24 @@ class SettingsStore(context: Context) {
             if (encoded == null) remove("account-profile") else putString("account-profile", encoded)
         }.commit()
         if (ok) _accountProfile.value = clean
+        return ok
+    }
+
+    /** 保存高级 API 配置；端点为空时清空端点专属 Key（ref setChatConfig）。 */
+    fun setChatConfig(config: ChatConfig): Boolean {
+        val clean = config.copy(
+            model = config.model.trim(),
+            endpoint = config.endpoint.trim(),
+            apiKey = if (config.endpoint.isNotBlank()) config.apiKey.trim() else "",
+        )
+        val json = Json { ignoreUnknownKeys = true }
+        val encoded = if (chatConfigNonDefault(clean)) {
+            json.encodeToString(ChatConfig.serializer(), clean)
+        } else null
+        val ok = prefs.edit().apply {
+            if (encoded == null) remove("chat-config") else putString("chat-config", encoded)
+        }.commit()
+        if (ok) _chatConfig.value = clean
         return ok
     }
 }
