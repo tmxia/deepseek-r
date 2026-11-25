@@ -42,13 +42,12 @@ android {
         !releaseKeyPassword.isNullOrBlank()
 
     signingConfigs {
-        if (hasReleaseSigning) {
-            create("release") {
-                storeFile = releaseStoreFile
-                storePassword = releaseStorePassword
-                keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
-            }
+        create("release") {
+            val env = System.getenv()
+            storeFile = file(env["RELEASE_STORE_FILE"] ?: "release.jks")
+            storePassword = env["RELEASE_STORE_PASSWORD"]
+            keyAlias = env["RELEASE_KEY_ALIAS"] ?: "dsreplica"
+            keyPassword = env["RELEASE_KEY_PASSWORD"]
         }
     }
 

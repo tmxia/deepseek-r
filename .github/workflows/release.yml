@@ -1,28 +1,37 @@
-name: Release APK
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ "main", "master" ]
+    tags: [ 'v*' ]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag name (optional when triggered manually)'
-        required: false
-        type: string
 
 permissions:
+  actions: write
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-release:
-    name: Test, Build & Sign Release APK
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Purge all old runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "⏳ 清理历史..."
+          RUNS=$(gh run list -R ${{ github.repository }} --limit 100 --json databaseId --jq '.[].databaseId')
+          for id in $RUNS; do
+            if [ "$id" == "${{ github.run_id }}" ]; then continue; fi
+            gh api -X POST /repos/${{ github.repository }}/actions/runs/$id/cancel || true
+            gh api -X DELETE /repos/${{ github.repository }}/actions/runs/$id || true
+          done
 
+      - uses: actions/checkout@v4
+      
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -32,57 +41,34 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Decode release keystore if configured
-        id: keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      - name: Decode Keystore
         run: |
-          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
-            mkdir -p keystore
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > keystore/release.jks
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/release.jks
+          echo "RELEASE_STORE_FILE=$RUNNER_TEMP/release.jks" >> $GITHUB_ENV
 
-      - name: Run unit tests, lint and build release APK
+      - name: Build and Sign Release APK
         env:
-          ANDROID_KEYSTORE_PATH: ${{ steps.keystore.outputs.signed == 'true' && 'keystore/release.jks' || '' }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew testDebugUnitTest lintDebug assembleRelease --console=plain
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --console=plain
 
-      - name: Prepare release APK file
-        id: apk
+      - name: Rename APK to Project Name
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${{ inputs.tag }}" ]; then
-            TAG="${{ inputs.tag }}"
-          fi
-          mkdir -p dist
-          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            OUT="dist/dsnative-${TAG}.apk"
-            cp app/build/outputs/apk/release/app-release.apk "$OUT"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          else
-            OUT="dist/dsnative-${TAG}-unsigned.apk"
-            cp app/build/outputs/apk/release/app-release-unsigned.apk "$OUT"
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "path=$OUT" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/deepseek-r.apk || true
 
-      - name: Upload release workflow artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: ${{ steps.apk.outputs.path }}
+          name: deepseek-r
+          path: app/build/outputs/apk/release/deepseek-r.apk
+          retention-days: 1
 
-      - name: Publish signed APK to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') && steps.apk.outputs.signed == 'true'
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.apk.outputs.tag }}
-          generate_release_notes: true
-          files: ${{ steps.apk.outputs.path }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Build' }}
+          files: app/build/outputs/apk/release/deepseek-r.apk
+          overwrite: true
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
