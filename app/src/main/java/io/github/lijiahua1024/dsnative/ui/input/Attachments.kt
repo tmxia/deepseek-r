@@ -68,7 +68,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -76,7 +75,6 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import android.view.WindowManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -811,16 +809,9 @@ fun ImagePreviewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false),
     ) {
-        // ref AndroidImageViewer.module.css: left/top/width/height 180ms ease-out —
-        // 缩略图位到全屏位的位移放大，近似为整体 fade+scale 入场
-        val viewerEnter = remember { androidx.compose.animation.core.Animatable(0f) }
-        LaunchedEffect(Unit) {
-            viewerEnter.animateTo(1f,
-                androidx.compose.animation.core.tween(180,
-                    easing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.58f, 1f)))
-        }
-        // ref preview is fully immersive: the WebView overlay hides both system
-        // bars and sits under a black status scrim
+        // ref Web AndroidImageViewer: dialog 直接全屏纯黑，无位移/缩放/淡入入场动画。
+        // 窗口全屏由 DialogProperties(usePlatformDefaultWidth=false) + fillMaxSize 保证，
+        // 与本仓库 Mermaid 全屏 Dialog 同一套稳定机制，不再在布局回调里反复重设窗口尺寸。
         val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
         DisposableEffect(dialogWindow) {
             val w = dialogWindow ?: return@DisposableEffect onDispose {}
@@ -833,30 +824,9 @@ fun ImagePreviewDialog(
                     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 hide(WindowInsetsCompat.Type.systemBars())
             }
-            // DialogWrapper re-applies wrap_content on every layout pass;
-            // re-assert MATCH_PARENT each time so the window keeps filling
-            // the parent frame (y128..2340, same as the ref overlay)
-            val fill = {
-                val lp = w.attributes
-                if (lp.width != WindowManager.LayoutParams.MATCH_PARENT ||
-                    lp.height != WindowManager.LayoutParams.MATCH_PARENT) {
-                    w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
-                        WindowManager.LayoutParams.MATCH_PARENT)
-                }
-            }
-            val fillRunnable = Runnable { fill() }
-            val layoutListener = android.view.View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> fill() }
-            w.decorView.post(fillRunnable)
-            w.decorView.addOnLayoutChangeListener(layoutListener)
-            onDispose {
-                w.decorView.removeCallbacks(fillRunnable)
-                w.decorView.removeOnLayoutChangeListener(layoutListener)
-            }
+            onDispose { }
         }
-        Box(Modifier.fillMaxSize().background(Color.Black)
-            .graphicsLayer {
-                alpha = viewerEnter.value
-            }) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
             val activeCrop = cropState
             if (activeCrop != null) {
                 CropEditorOverlay(
@@ -896,16 +866,9 @@ fun ImagePreviewDialog(
                     }
                 }
                 is PreviewDecode.Ready -> {
-                    // 图片解码完成后再淡入，避免 Loading 占位与位图硬切造成的闪跳
-                    val imgAlpha = remember { androidx.compose.animation.core.Animatable(0f) }
-                    LaunchedEffect(previewDecode.bitmap) {
-                        imgAlpha.animateTo(1f,
-                            androidx.compose.animation.core.tween(160))
-                    }
                     Image(
                         previewDecode.bitmap, item.name,
                         Modifier.fillMaxSize()
-                            .graphicsLayer { alpha = imgAlpha.value }
                             .clickable(onClick = onClose),
                         contentScale = ContentScale.Fit,
                     )
@@ -923,11 +886,11 @@ fun ImagePreviewDialog(
                 }
             }
             // .previewControls：右下 right/bottom 16px fixed（ref 用 button-nav
-            // inset=0 的手势导航），gap 8。dialog 内容仍带着隐式 nav inset，
-            // 用 offset 把按钮推回屏幕底边
+            // ref .previewControls: right/bottom 16px + nav inset；用系统导航栏内边距
+            // 避让手势导航条，不再硬编码上移偏移。
             Column(
                 Modifier.align(Alignment.BottomEnd)
-                    .offset(y = 25.dp)
+                    .navigationBarsPadding()
                     .padding(end = 16.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.End,
             ) {
