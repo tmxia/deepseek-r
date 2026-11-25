@@ -432,28 +432,38 @@ private fun RenderBlock(
                         color = c.labelPrimary,
                         modifier = Modifier.padding(start = 8.dp))
                     Spacer(Modifier.weight(1f))
-                    // ref CodeBlock .button:active -> interactive-bg-hover; tap copies the code
+                    // ref CodeBlock .button:active -> interactive-bg-hover; 复制成功仅按钮变勾/变文字，不弹 toast
                     val copySrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                     val copyPressed by copySrc.collectIsPressedAsState()
+                    var copied by remember { mutableStateOf(false) }
                     val ctx = androidx.compose.ui.platform.LocalContext.current
+                    androidx.compose.runtime.LaunchedEffect(copied) {
+                        if (copied) {
+                            kotlinx.coroutines.delay(1500)
+                            copied = false
+                        }
+                    }
                     Row(
                         Modifier.height(28.dp)
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                             .background(DsTheme.pressTint(copyPressed, c.interactiveBgHover))
                             .clickable(copySrc, null) {
+                                if (copied) return@clickable
                                 (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                                     as android.content.ClipboardManager)
                                     .setPrimaryClip(android.content.ClipData.newPlainText("code", literal))
-                                io.github.lijiahua1024.dsnative.ui.session.DsToast.show(
-                                    io.github.lijiahua1024.dsnative.theme.Strings.get("copied"))
+                                copied = true
                             }
                             .padding(horizontal = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         androidx.compose.material3.Icon(
-                            androidx.compose.ui.res.painterResource(io.github.lijiahua1024.dsnative.R.drawable.ic_copy),
+                            androidx.compose.ui.res.painterResource(
+                                if (copied) io.github.lijiahua1024.dsnative.R.drawable.ic_check
+                                else io.github.lijiahua1024.dsnative.R.drawable.ic_copy),
                             null, tint = c.labelSecondary, modifier = Modifier.size(14.dp))
-                        Text(io.github.lijiahua1024.dsnative.theme.Strings.get("copy"),
+                        Text(
+                            io.github.lijiahua1024.dsnative.theme.Strings.get(if (copied) "copied" else "copy"),
                             fontSize = 13.sp, lineHeight = 14.2.sp, color = c.labelSecondary,
                             modifier = Modifier.padding(start = 3.dp))
                     }
