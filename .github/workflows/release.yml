@@ -6,12 +6,10 @@ on:
     tags: [ 'v*' ]
   workflow_dispatch:
 
-# 必须赋予 actions 写权限，才能删除历史记录
 permissions:
   actions: write
   contents: write
 
-# 并发控制：如果再次触发，自动秒杀上一个正在运行的任务
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
@@ -20,31 +18,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # ==========================================
-      # 第一步：暴力清理历史记录（在 checkout 之前）
-      # ==========================================
       - name: Purge all old workflow runs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "⏳ 正在清理所有历史工作流记录..."
-          # 获取该仓库中所有运行记录的 ID
           RUNS=$(gh run list -R ${{ github.repository }} --limit 100 --json databaseId --jq '.[].databaseId')
           for id in $RUNS; do
-            # 绝对不能删除当前正在运行的这个任务
-            if [ "$id" == "${{ github.run_id }}" ]; then
-              continue
-            fi
-            echo "🗑️ 正在强制删除历史记录: $id"
-            # 先尝试取消（防止还在运行），再尝试删除，忽略可能产生的报错
+            if [ "$id" == "${{ github.run_id }}" ]; then continue; fi
             gh api -X POST /repos/${{ github.repository }}/actions/runs/$id/cancel || true
             gh api -X DELETE /repos/${{ github.repository }}/actions/runs/$id || true
           done
           echo "✅ 历史记录清理完毕。"
 
-      # ==========================================
-      # 下面是标准的构建与发布流程
-      # ==========================================
       - uses: actions/checkout@v4
       
       - name: Set up JDK 17
@@ -55,6 +41,19 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      # 自动提取版本号：如果是推 Tag，直接用 Tag；如果是推 main，从 build.gradle.kts 读取
+      - name: Extract Version
+        id: get_version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            VERSION_NAME=$(grep -E 'versionName\s*=\s*"[^"]+"' app/build.gradle.kts | head -n 1 | awk -F '"' '{print $2}')
+            if [ -z "$VERSION_NAME" ]; then VERSION_NAME="1.0.0"; fi
+            echo "VERSION=v${VERSION_NAME}" >> $GITHUB_ENV
+          fi
+          echo "准备发布的版本标签为: $VERSION"
 
       - name: Decode Keystore
         run: |
@@ -68,9 +67,16 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --console=plain
 
-      - name: Rename APK to Project Name
+      # 健壮的 APK 查找与重命名：不依赖固定文件名，用 find 抓取
+      - name: Prepare APK Artifact
         run: |
-          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/deepseek-r.apk || true
+          APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ 没有找到 APK 文件！"
+            exit 1
+          fi
+          echo "找到 APK: $APK_PATH"
+          cp "$APK_PATH" app/build/outputs/apk/release/deepseek-r.apk
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -82,8 +88,8 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Build' }}
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
           files: app/build/outputs/apk/release/deepseek-r.apk
-          overwrite: true
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          overwrite_files: true
+          prerelease: false
