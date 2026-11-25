@@ -884,44 +884,16 @@ private fun MessageFileView(
     val uploading = file.serverId == null && reply?.status == ReplyStatus.PENDING
 
     if (file.isImage) {
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        var showImageMenu by remember { mutableStateOf(false) }
+        // ref Web MessageFile：图片仅承担点击预览；长按菜单由外层附件容器统一弹出
+        // 消息级「修改/分享」，内层不注册长按、不弹出保存图片菜单。
         Box(Modifier.size(imgSize)
             .clip(RoundedCornerShape(16.dp))
             .background(c.markdownPlaceholder)
             .border(1.dp, if (uploadError != null) c.stateErrorPrimary else c.borderL2,
                 RoundedCornerShape(16.dp))
-            .combinedClickable(
-                onClick = { preview = true },
-                onLongClick = { showImageMenu = true }
-            )) {
+            .clickable { preview = true }) {
             file.localPath?.let { io.github.lijiahua1024.dsnative.ui.input.orientedThumbFor(it, 320) }
                 ?.let { Image(it, file.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-
-            DropdownMenu(
-                expanded = showImageMenu,
-                onDismissRequest = { showImageMenu = false },
-                modifier = Modifier.background(c.bgBase).width(140.dp)
-            ) {
-                DropdownMenuItem(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = { Text("保存图片", fontSize = 14.sp, color = c.labelPrimary) },
-                    onClick = {
-                        showImageMenu = false
-                        val path = file.localPath
-                        if (path != null) {
-                            val ok = io.github.lijiahua1024.dsnative.ui.input.saveImageToGallery(ctx, path, file.name, "image/jpeg")
-                            if (ok) io.github.lijiahua1024.dsnative.ui.session.DsToast.show("已保存到相册")
-                            else io.github.lijiahua1024.dsnative.ui.session.DsToast.show("保存失败")
-                        }
-                    }
-                )
-                DropdownMenuItem(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = { Text("取消", fontSize = 14.sp, color = c.labelPrimary) },
-                    onClick = { showImageMenu = false }
-                )
-            }
 
             if (uploading) {
                 Box(
