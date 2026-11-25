@@ -1,6 +1,7 @@
 package io.github.lijiahua1024.dsnative.ui.session
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -415,10 +416,13 @@ private fun RenderBlock(
                     )
                 }
             } else
-            Column(
-                Modifier.fillMaxWidth()
-                    .background(c.markdownCodeBlock, androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
-            ) {
+                                val blockShape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .clip(blockShape)
+                            .background(c.markdownCodeBlock, blockShape)
+                            .animateContentSize(animationSpec = androidx.compose.animation.core.tween(250)),
+                    ) {
                 // ref CodeInfoRow .container: padding 6px; copy .button h28 r8 px10 gap3
                 Row(
                     Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 6.dp),
