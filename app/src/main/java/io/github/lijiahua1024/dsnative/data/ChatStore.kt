@@ -1081,24 +1081,24 @@ class ChatStore(
 
     private fun updateReply(sessionId: String, reply: Message.Assistant) {
         scope.launch(Dispatchers.Default) {
-            updateSession(sessionId) { session ->
-                session.copy(messages = session.messages.map { message ->
-                    if (message.id == reply.id) {
-                        reply.copy(parentId = message.parentId, selectedChildId = message.selectedChildId)
-                    } else message
-                })
-            }
+            updateSession(sessionId) { session -> replaceReply(session, reply) }
         }
     }
 
     private suspend fun updateReplySync(sessionId: String, reply: Message.Assistant) {
-        updateSession(sessionId) { session ->
-            session.copy(messages = session.messages.map { message ->
-                if (message.id == reply.id) {
-                    reply.copy(parentId = message.parentId, selectedChildId = message.selectedChildId)
-                } else message
-            })
-        }
+        updateSession(sessionId) { session -> replaceReply(session, reply) }
+    }
+
+    /** 仅替换目标回复项，未变消息沿用原 List 元素引用；找不到目标时保留原会话。 */
+    private fun replaceReply(session: Session, reply: Message.Assistant): Session {
+        val idx = session.messages.indexOfFirst { it.id == reply.id }
+        if (idx < 0) return session
+        val previous = session.messages[idx]
+        val merged = reply.copy(parentId = previous.parentId, selectedChildId = previous.selectedChildId)
+        if (merged === previous) return session
+        val updated = session.messages.toMutableList()
+        updated[idx] = merged
+        return session.copy(messages = updated)
     }
 
     private suspend fun streamReply(
