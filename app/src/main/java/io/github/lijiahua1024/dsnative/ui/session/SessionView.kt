@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -408,7 +409,7 @@ fun SessionView(
                 modifier = Modifier.align(Alignment.TopEnd)
                     .padding(end = endPad)
                     .offset(y = topPad)
-                    .width(136.dp)
+                    .width(194.dp)
                     .onPlaced { menuH = it.size.height },
             ) {
                 Column(Modifier.padding(4.dp)) {
@@ -469,7 +470,7 @@ fun SessionView(
                     .align(Alignment.TopStart)
                     .padding(start = 24.dp)
                     .offset(y = topPad)
-                    .width(154.dp)
+                    .width(194.dp)
                     .onPlaced { menuH = it.size.height },
             ) {
                 Column(Modifier.padding(4.dp)) {
@@ -970,14 +971,24 @@ private fun MessageFileView(
 
 @Composable
 private fun MenuOption(label: String, icon: Int, tint: Color, onClick: () -> Unit) {
-    // ref .option: padding 8/10 + font 14/24 —— CSS line-box 恒为 24px；
-    // Compose 单行 Text 高度只有 ~21sp，必须显式 40dp 行高，否则第二项上移 ~9px
-    Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
-        .height(40.dp).padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically) {
+    val c = DsTheme.colors
+    // ref Web Android .userMessageMenu/.assistantMessageMenu .option: h45, padding-left 16,
+    // gap 11；整行 fillMaxWidth 可点（右侧空白不再是死区）；按压为整行浅灰高亮
+    // interactive-bg-hover，关闭 ripple，避免浅色菜单上扩散不明显。
+    val pressSrc = remember { MutableInteractionSource() }
+    val pressed by pressSrc.collectIsPressedAsState()
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(DsTheme.pressTint(pressed, c.interactiveBgHover))
+            .clickable(pressSrc, null, onClick = onClick)
+            .height(45.dp)
+            .padding(start = 16.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label, fontSize = 15.sp, lineHeight = 24.sp, color = tint)
+        Spacer(Modifier.width(11.dp))
+        Text(label, fontSize = 15.sp, lineHeight = 22.sp, color = tint)
     }
 }
 
