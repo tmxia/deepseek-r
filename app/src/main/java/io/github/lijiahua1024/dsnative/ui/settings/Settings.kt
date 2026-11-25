@@ -13,6 +13,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -719,6 +721,7 @@ private fun SettingsRow(
 @Composable
 private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card: Color, muted: Color, settings: SettingsStore, onPage: (String) -> Unit = {}) {
     val savedProfile by settings.accountProfile.collectAsState()
+    val savedChatConfig by settings.chatConfig.collectAsState()
     var draftName by remember(savedProfile) { mutableStateOf(savedProfile.username) }
     var draftAvatar by remember(savedProfile) { mutableStateOf(savedProfile.avatarDataUrl) }
     var loadingAvatar by remember { mutableStateOf(false) }
@@ -940,16 +943,19 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
                     }
                 }
             }
-            SettingsRow(c, muted, Strings.get("balanceUsageEntry"),
-                icon = { Icon(painterResource(R.drawable.ic_link), null, tint = c.labelPrimary,
-                    modifier = Modifier.size(18.dp)) }) {
-                open("https://platform.deepseek.com/usage")
-            }
+        }
+        // ref account (AndroidSettings.tsx 883)：高级设置入口紧随余额面板（不依赖是否已填 Key），展示当前模型名。
+        SettingsRow(c, muted, Strings.get("advancedSettings"),
+            value = savedChatConfig.model.ifBlank { null },
+            icon = { Icon(painterResource(R.drawable.ic_data), null, tint = c.labelPrimary, modifier = Modifier.size(18.dp)) }) { onPage("advanced") }
+        // ref account (888)：用量与充值为无条件 Row，紧随高级设置之后。
+        SettingsRow(c, muted, Strings.get("balanceUsageEntry"),
+            icon = { Icon(painterResource(R.drawable.ic_link), null, tint = c.labelPrimary,
+                modifier = Modifier.size(18.dp)) }) {
+            open("https://platform.deepseek.com/usage")
         }
         SettingsRow(c, muted, Strings.get("openPlatform")) { open("https://platform.deepseek.com/api_keys") }
         SettingsRow(c, muted, Strings.get("openPlatformHelp")) { open("https://api-docs.deepseek.com/zh-cn/") }
-        SettingsRow(c, muted, Strings.get("advancedSettings"),
-            icon = { Icon(painterResource(R.drawable.ic_data), null, tint = c.labelPrimary, modifier = Modifier.size(18.dp)) }) { onPage("advanced") }
     }
 }
 
@@ -1167,6 +1173,67 @@ private fun PersonalizationPage(c: io.github.lijiahua1024.dsnative.theme.DsColor
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 27.dp))
 }
 
+// ref AdvancedApiSettings.module.css .form label/.field：label 在上（14px），与控件 gap 6px。
+@Composable
+private fun AdvancedField(label: String, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, fontSize = 14.sp, color = DsTheme.colors.labelSecondary)
+        content()
+    }
+}
+
+// ref .form input：minH42，padding 8/12，1px borderL2，r10，透明底。
+@Composable
+private fun AdvancedTextField(
+    value: String,
+    placeholder: String,
+    password: Boolean = false,
+    onValueChange: (String) -> Unit,
+) {
+    val c = DsTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val borderColor = if (focused) c.brandPrimary else c.borderL2
+    Box(Modifier.fillMaxWidth().height(42.dp)
+        .clip(RoundedCornerShape(10.dp))
+        .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+        .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.CenterStart) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            interactionSource = interactionSource,
+            visualTransformation = if (password) PasswordVisualTransformation()
+            else androidx.compose.ui.text.input.VisualTransformation.None,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
+            modifier = Modifier.fillMaxWidth(),
+            decorationBox = { inner ->
+                if (value.isEmpty()) Text(placeholder, fontSize = 16.sp, color = c.labelTertiary)
+                inner()
+            },
+        )
+    }
+}
+
+// ref Select .trigger：h36，r18，浅灰 selector 底，右侧下拉箭头。
+@Composable
+private fun AdvancedSelector(label: String, onClick: () -> Unit) {
+    val c = DsTheme.colors
+    Row(Modifier.fillMaxWidth().height(36.dp)
+        .clip(RoundedCornerShape(18.dp))
+        .background(c.selector)
+        .clickable(onClick = onClick)
+        .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
+            modifier = Modifier.weight(1f))
+        Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.labelSecondary,
+            modifier = Modifier.size(14.dp).rotate(90f))
+    }
+}
+
 @Composable
 private fun AdvancedApiPage(
     c: io.github.lijiahua1024.dsnative.theme.DsColors,
@@ -1210,103 +1277,65 @@ private fun AdvancedApiPage(
     }
 
     SettingsGroup(null, card, muted) {
-        Row(
-            Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(Strings.get("advancedModel"), fontSize = 14.sp, color = muted, modifier = Modifier.width(96.dp))
-            androidx.compose.foundation.text.BasicTextField(
-                value = model,
-                onValueChange = { model = it; error = null },
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    if (model.isEmpty()) Text("deepseek-flash", fontSize = 16.sp, color = muted)
-                    inner()
-                },
-            )
-        }
-        SettingsRow(c, muted, Strings.get("advancedProtocol"), value = chatFormatLabel(format)) {
-            formatPopup = true
-        }
-        Row(
-            Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(Strings.get("advancedEndpoint"), fontSize = 14.sp, color = muted, modifier = Modifier.width(96.dp))
-            androidx.compose.foundation.text.BasicTextField(
-                value = endpoint,
-                onValueChange = { next ->
+        // ref AdvancedApiSettings.module.css .form: 字段垂直堆叠，gap 14；label 在上、gap 6，控件在下。
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            AdvancedField(Strings.get("advancedModel")) {
+                AdvancedTextField(model, "deepseek-flash") { model = it; error = null }
+            }
+            AdvancedField(Strings.get("advancedProtocol")) {
+                AdvancedSelector(chatFormatLabel(format)) { formatPopup = true }
+            }
+            AdvancedField(Strings.get("advancedEndpoint")) {
+                AdvancedTextField(endpoint, endpointExample) { next ->
                     val baseChanged = chatBaseUrl(next, format) != chatBaseUrl(endpoint, format)
                     endpoint = next
                     if (baseChanged) endpointKey = ""
                     error = null
-                },
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    if (endpoint.isEmpty()) Text(endpointExample, fontSize = 16.sp, color = muted)
-                    inner()
-                },
-            )
-        }
-        if (customEndpoint.isNotEmpty()) {
-            Row(
-                Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(Strings.get("advancedEndpointKey"), fontSize = 14.sp, color = muted, modifier = Modifier.width(96.dp))
-                androidx.compose.foundation.text.BasicTextField(
-                    value = endpointKey,
-                    onValueChange = { endpointKey = it },
-                    singleLine = true,
-                    enabled = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = c.labelPrimary),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(c.brandPrimary),
-                    modifier = Modifier.weight(1f),
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    decorationBox = { inner ->
-                        if (endpointKey.isEmpty()) Text(Strings.get("apiKeyPlaceholder"), fontSize = 16.sp, color = muted)
-                        inner()
-                    },
-                )
+                }
             }
-            Text(Strings.get("advancedProviderHint"), fontSize = 13.sp, lineHeight = 21.sp, color = muted,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            Text(Strings.get(if (customEndpoint.isEmpty()) "advancedDefaultHint" else "advancedEndpointHint"),
+                fontSize = 13.sp, lineHeight = 21.sp, color = muted)
+            if (customEndpoint.isNotEmpty()) {
+                AdvancedField(Strings.get("advancedEndpointKey")) {
+                    AdvancedTextField(endpointKey, Strings.get("apiKeyPlaceholder"), password = true) { endpointKey = it }
+                }
+                Text(Strings.get("advancedProviderHint"), fontSize = 13.sp, lineHeight = 21.sp, color = muted)
+            }
         }
     }
-    Text(
-        Strings.get(if (customEndpoint.isEmpty()) "advancedDefaultHint" else "advancedEndpointHint"),
-        fontSize = 13.sp, lineHeight = 21.sp, color = muted,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-    )
     error?.let {
         Text(it, fontSize = 13.sp, color = c.stateErrorPrimary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
     }
+    // ref .actions: 右对齐 outlined + primary 胶囊按钮，gap 8。
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 27.dp),
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            Strings.get("advancedReset"),
-            fontSize = 15.sp, color = muted,
-            modifier = Modifier.clickable { persist(ChatConfig()) },
-        )
-        Spacer(Modifier.weight(1f))
-        Text(
-            Strings.get("advancedSave"),
-            fontSize = 16.sp, fontWeight = FontWeight.Medium, color = c.brandText,
-            modifier = Modifier.clickable { save() },
-        )
+        Button(
+            onClick = { persist(ChatConfig()) },
+            shape = RoundedCornerShape(4096.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = c.labelPrimary,
+            ),
+            border = androidx.compose.foundation.BorderStroke(1.dp, c.borderL2),
+            contentPadding = PaddingValues(horizontal = 18.dp),
+            modifier = Modifier.height(40.dp),
+        ) { Text(Strings.get("advancedReset"), fontSize = 14.sp, fontWeight = FontWeight.Normal) }
+        Spacer(Modifier.width(8.dp))
+        Button(
+            onClick = { save() },
+            shape = RoundedCornerShape(4096.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = c.buttonPrimaryFill,
+                contentColor = Color.White,
+            ),
+            contentPadding = PaddingValues(horizontal = 18.dp),
+            modifier = Modifier.height(40.dp),
+        ) { Text(Strings.get("advancedSave"), fontSize = 14.sp, fontWeight = FontWeight.Medium) }
     }
 
     if (formatPopup) {
