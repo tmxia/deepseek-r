@@ -416,13 +416,12 @@ private fun RenderBlock(
                     )
                 }
             } else
-                                val blockShape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                    Column(
-                        Modifier.fillMaxWidth()
-                            .clip(blockShape)
-                            .background(c.markdownCodeBlock, blockShape)
-                            .animateContentSize(animationSpec = androidx.compose.animation.core.tween(250)),
-                    ) {
+                                Column(
+                                                Modifier.fillMaxWidth()
+                                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                                    .background(c.markdownCodeBlock, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                                    .animateContentSize(animationSpec = androidx.compose.animation.core.tween(250)),
+                                            ) {
                 // ref CodeInfoRow .container: padding 6px; copy .button h28 r8 px10 gap3
                 Row(
                     Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 6.dp),
