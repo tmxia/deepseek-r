@@ -481,7 +481,11 @@ private fun RenderBlock(
                     Modifier.fillMaxWidth()
                         .background(c.markdownCodeBlockBanner)
                 ) {
-                    val highlightedCode = remember(trimmedCode, c.dark, lang) { highlightCode(trimmedCode, c, lang) }
+                    // 折叠态只对可见的前 5 行做高亮，避免长代码块首挂即对全量文本跑正则；展开后再全量高亮。
+                    val highlightSource = if (needsFold && collapsed) {
+                        trimmedCode.lines().take(5).joinToString("\n")
+                    } else trimmedCode
+                    val highlightedCode = remember(highlightSource, c.dark, lang) { highlightCode(highlightSource, c, lang) }
                     Text(
                         highlightedCode,
                         fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp,

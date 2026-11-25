@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.util.LruCache
 import android.util.Size
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -182,6 +183,14 @@ private fun guessMime(name: String): String {
     }
 }
 
+/** 缩略图位图内存缓存：key = 方向校正标记+尺寸+路径，避免往返滚动重复磁盘解码；容量取堆上限 1/8，按位图字节数计。 */
+private val thumbnailCache = object : LruCache<String, ImageBitmap>(
+    (Runtime.getRuntime().maxMemory() / 8).toInt()
+) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int =
+        value.width * value.height * 4
+}
+
 @SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 private fun rememberThumb(producer: suspend () -> Bitmap?): ImageBitmap? {
@@ -222,14 +231,18 @@ internal fun thumbFor(path: String, sizePx: Int): ImageBitmap? {
     return bmp
 }
 
-/** 缩略图按 EXIF 方向校正后解码，避免竖拍照片在气泡/草稿位横置。 */
+/** 缩略图按 EXIF 方向校正后解码，避免竖拍照片在气泡/草稿位横置；结果进内存缓存，滚回免重复解码。 */
 @SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 internal fun orientedThumbFor(path: String, sizePx: Int): ImageBitmap? {
-    val bmp by produceState<ImageBitmap?>(initialValue = null, path) {
+    val key = "oriented|$sizePx|$path"
+    val cached = thumbnailCache.get(key)
+    val bmp by produceState<ImageBitmap?>(cached, path, sizePx) {
+        thumbnailCache.get(key)?.let { value = it; return@produceState }
         value = withContext(Dispatchers.IO) {
             try {
                 decodeOrientedBitmap(path, sizePx)?.asImageBitmap()
+                    ?.also { thumbnailCache.put(key, it) }
             } catch (_: Exception) {
                 null
             }

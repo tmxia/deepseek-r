@@ -170,8 +170,18 @@ fun SessionView(
             }
         }
 
-        val visible = remember(session) { session?.let { visibleMessages(it) } ?: emptyList() }
-        val siblingIdsByParent = remember(session?.messages) {
+        // 结构指纹只含消息 id/父级/选中子级与根节点，不含正文 blocks/content；
+        // 流式刷新正文时该指纹不变，可见路径与兄弟分组不必重建。
+        val structureKey = session?.let { s ->
+            buildString(s.messages.size * 24) {
+                append(s.rootMessageId ?: "")
+                for (m in s.messages) {
+                    append('|').append(m.id).append(':').append(m.parentId).append(':').append(m.selectedChildId)
+                }
+            }
+        }
+        val visible = remember(session?.id, structureKey) { session?.let { visibleMessages(it) } ?: emptyList() }
+        val siblingIdsByParent = remember(structureKey) {
             val msgs = session?.messages ?: return@remember emptyMap()
             val map = HashMap<String?, MutableList<String>>()
             for (m in msgs) {
