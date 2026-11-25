@@ -719,29 +719,28 @@ fun UserBubble(
 ) {
     val c = DsTheme.colors
     val coordsRef = remember { CoordsRef() }
+    // ref Web：长按菜单挂在附件/气泡上弹出消息级「修改/分享」。
+    // 手势检测器下沉到每个文件项/气泡自身（combinedClickable），避免外层容器与内层
+    // 图片 clickable 竞争导致长按手势被内层 tap 检测器吞掉、菜单唤不出来。
+    val openMenu: () -> Unit = {
+        val coords = coordsRef.coords
+        val rect = if (coords != null && coords.isAttached) {
+            val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
+            androidx.compose.ui.geometry.Rect(
+                p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
+            )
+        } else androidx.compose.ui.geometry.Rect.Zero
+        onMenu(msg, rect)
+    }
     Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
         // ref .files: wrap 行右对齐 gap 10px mb 8px；混排文档时缩略图 64px
         if (msg.files.isNotEmpty()) {
             val hasDoc = msg.files.any { !it.isImage }
             val imgSize = if (hasDoc) 64.dp else 120.dp
-            // ref Web：附件容器与气泡文本一样绑定长按菜单，纯图片/文件消息才能唤起编辑入口
+            // 外层容器只负责记录整行坐标，长按/点击手势在各文件项内部处理。
             Box(
                 Modifier
                     .onPlaced { coordsRef.coords = it }
-                    .combinedClickable(
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        onClick = {},
-                        onLongClick = {
-                            val coords = coordsRef.coords
-                            val rect = if (coords != null && coords.isAttached) {
-                                val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
-                                androidx.compose.ui.geometry.Rect(
-                                    p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
-                                )
-                            } else androidx.compose.ui.geometry.Rect.Zero
-                            onMenu(msg, rect)
-                        })
             ) {
                 androidx.compose.foundation.layout.FlowRow(
                     Modifier.fillMaxWidth().padding(
@@ -753,7 +752,7 @@ fun UserBubble(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     msg.files.forEach { file ->
-                        MessageFileView(sessionId, file, uploadReply, imgSize, chatStore)
+                        MessageFileView(sessionId, file, uploadReply, imgSize, chatStore, onLongClick = openMenu)
                     }
                 }
             }
@@ -779,16 +778,7 @@ fun UserBubble(
                                 indication = null,
                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                 onClick = {},
-                                onLongClick = {
-                                    val coords = coordsRef.coords
-                                    val rect = if (coords != null && coords.isAttached) {
-                                        val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
-                                        androidx.compose.ui.geometry.Rect(
-                                            p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
-                                        )
-                                    } else androidx.compose.ui.geometry.Rect.Zero
-                                    onMenu(msg, rect)
-                                })
+                                onLongClick = openMenu)
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                     ) {
                         Text(
@@ -878,6 +868,7 @@ private fun MessageFileView(
     reply: Message.Assistant?,
     imgSize: androidx.compose.ui.unit.Dp,
     chatStore: ChatStore,
+    onLongClick: () -> Unit = {},
 ) {
     val c = DsTheme.colors
     var preview by remember { mutableStateOf(false) }
@@ -885,14 +876,22 @@ private fun MessageFileView(
     val uploading = file.serverId == null && reply?.status == ReplyStatus.PENDING
 
     if (file.isImage) {
-        // ref Web MessageFile：图片仅承担点击预览；长按菜单由外层附件容器统一弹出
-        // 消息级「修改/分享」，内层不注册长按、不弹出保存图片菜单。
+        // ref Web MessageFile：button 点击打开预览；长按 contextmenu 冒泡到消息级菜单。
+        // Compose 下长按与点击同挂在文件项自己的 combinedClickable 上，避免被外层/内层
+        // 另一套 tap 检测器吞掉长按手势。
         Box(Modifier.size(imgSize)
             .clip(RoundedCornerShape(16.dp))
             .background(c.markdownPlaceholder)
             .border(1.dp, if (uploadError != null) c.stateErrorPrimary else c.borderL2,
                 RoundedCornerShape(16.dp))
-            .clickable { preview = true }) {
+            .combinedClickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                onClick = {
+                    if (uploadError != null) chatStore.retryUpload(sessionId, uploadError.id)
+                    else preview = true
+                },
+                onLongClick = onLongClick)) {
             file.localPath?.let { io.github.lijiahua1024.dsnative.ui.input.orientedThumbFor(it, 320) }
                 ?.let { Image(it, file.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
 
@@ -908,8 +907,7 @@ private fun MessageFileView(
             } else if (uploadError != null) {
                 Box(
                     modifier = Modifier.fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                        .clickable { chatStore.retryUpload(sessionId, uploadError.id) },
+                        .background(Color.Black.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(painterResource(R.drawable.ic_refresh), null, tint = Color.White,
@@ -924,7 +922,11 @@ private fun MessageFileView(
             .border(1.dp, if (uploadError != null) c.stateErrorPrimary else c.borderL2,
                 RoundedCornerShape(16.dp))
             .background(c.inputMajor)
-            .clickable(uploadError != null) { chatStore.retryUpload(sessionId, uploadError!!.id) }
+            .combinedClickable(
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                onClick = { if (uploadError != null) chatStore.retryUpload(sessionId, uploadError.id) },
+                onLongClick = onLongClick)
             .padding(start = 14.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(28.dp).padding(end = 0.dp), contentAlignment = Alignment.Center) {
