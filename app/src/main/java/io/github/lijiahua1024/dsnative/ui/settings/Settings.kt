@@ -158,6 +158,7 @@ fun ApiKeyScreen(settings: SettingsStore) {
 private fun settingsPageTitle(page: String): String = when (page) {
     "root" -> Strings.get("settings")
     "account" -> Strings.get("settingsAccountPage")
+    "advanced" -> Strings.get("advancedSettings")
     "data" -> Strings.get("settingsDataPage")
     "font" -> Strings.get("settingsFontPage")
     "personalization" -> Strings.get("settingsPersonalizationPage")
@@ -1195,8 +1196,8 @@ private fun AdvancedTextField(
     val focused by interactionSource.collectIsFocusedAsState()
     val borderColor = if (focused) c.brandPrimary else c.borderL2
     Box(Modifier.fillMaxWidth().height(42.dp)
-        .clip(RoundedCornerShape(10.dp))
-        .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+        .clip(RoundedCornerShape(16.dp))
+        .border(1.dp, borderColor, RoundedCornerShape(16.dp))
         .padding(horizontal = 12.dp),
         contentAlignment = Alignment.CenterStart) {
         androidx.compose.foundation.text.BasicTextField(
@@ -1219,18 +1220,53 @@ private fun AdvancedTextField(
 
 // ref Select .trigger：h36，r18，浅灰 selector 底，右侧下拉箭头。
 @Composable
-private fun AdvancedSelector(label: String, onClick: () -> Unit) {
+private fun AdvancedSelector(
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
     val c = DsTheme.colors
+    var expanded by remember { mutableStateOf(false) }
+    val current = options.firstOrNull { it.first == selected }?.second
     Row(Modifier.fillMaxWidth().height(36.dp)
         .clip(RoundedCornerShape(18.dp))
         .background(c.selector)
-        .clickable(onClick = onClick)
+        .clickable { expanded = !expanded }
         .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
+        Text(current ?: "", fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
             modifier = Modifier.weight(1f))
         Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.labelSecondary,
             modifier = Modifier.size(14.dp).rotate(90f))
+    }
+    // ref base/Select: 锚定 trigger 下方的 listbox 浮层，menu r12/padding4，选项 minH40 r10，选中项右侧打勾。
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = { expanded = false },
+        modifier = Modifier.widthIn(min = 124.dp, max = 280.dp),
+        shape = RoundedCornerShape(12.dp),
+        containerColor = c.menu,
+        border = androidx.compose.foundation.BorderStroke(1.dp, c.borderInverted),
+    ) {
+        Column(Modifier.padding(4.dp)) {
+            options.forEach { (value, label) ->
+                Row(
+                    Modifier.fillMaxWidth()
+                        .heightIn(min = 40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { expanded = false; onSelect(value) }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(label, fontSize = 14.sp, lineHeight = 22.sp, color = c.labelPrimary,
+                        modifier = Modifier.weight(1f))
+                    if (value == selected) {
+                        Icon(painterResource(R.drawable.ic_check), null, tint = c.labelSecondary,
+                            modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1247,7 +1283,6 @@ private fun AdvancedApiPage(
     var endpoint by remember(saved) { mutableStateOf(chatBaseUrl(saved.endpoint, saved.format) ?: "") }
     var endpointKey by remember(saved) { mutableStateOf(saved.apiKey) }
     var error by remember { mutableStateOf<String?>(null) }
-    var formatPopup by remember { mutableStateOf(false) }
 
     val customEndpoint = endpoint.trim()
     val endpointExample = when (format) {
@@ -1284,7 +1319,11 @@ private fun AdvancedApiPage(
                 AdvancedTextField(model, "deepseek-flash") { model = it; error = null }
             }
             AdvancedField(Strings.get("advancedProtocol")) {
-                AdvancedSelector(chatFormatLabel(format)) { formatPopup = true }
+                AdvancedSelector(
+                    options = ChatApiFormat.entries.map { it.name to chatFormatLabel(it) },
+                    selected = format.name,
+                    onSelect = { id -> format = ChatApiFormat.valueOf(id); error = null },
+                )
             }
             AdvancedField(Strings.get("advancedEndpoint")) {
                 AdvancedTextField(endpoint, endpointExample) { next ->
@@ -1316,7 +1355,7 @@ private fun AdvancedApiPage(
     ) {
         Button(
             onClick = { persist(ChatConfig()) },
-            shape = RoundedCornerShape(4096.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.Transparent,
                 contentColor = c.labelPrimary,
@@ -1328,7 +1367,7 @@ private fun AdvancedApiPage(
         Spacer(Modifier.width(8.dp))
         Button(
             onClick = { save() },
-            shape = RoundedCornerShape(4096.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = c.buttonPrimaryFill,
                 contentColor = Color.White,
@@ -1336,21 +1375,6 @@ private fun AdvancedApiPage(
             contentPadding = PaddingValues(horizontal = 18.dp),
             modifier = Modifier.height(40.dp),
         ) { Text(Strings.get("advancedSave"), fontSize = 14.sp, fontWeight = FontWeight.Medium) }
-    }
-
-    if (formatPopup) {
-        ChoicePopup(
-            c, card, muted,
-            title = Strings.get("advancedProtocol"),
-            options = ChatApiFormat.entries.map { it.name to chatFormatLabel(it) },
-            selected = format.name,
-            onConfirm = { id ->
-                format = ChatApiFormat.valueOf(id)
-                formatPopup = false
-                error = null
-            },
-            onDismiss = { formatPopup = false },
-        )
     }
 }
 

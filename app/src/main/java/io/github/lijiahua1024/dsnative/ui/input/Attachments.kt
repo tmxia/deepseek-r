@@ -1170,7 +1170,7 @@ private fun CropEditorOverlay(
                     containerColor = c.brandPrimary,
                     contentColor = Color.White,
                 ),
-                shape = RoundedCornerShape(100.dp),
+                shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 if (saving) {

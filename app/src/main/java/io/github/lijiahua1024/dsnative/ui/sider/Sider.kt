@@ -569,10 +569,10 @@ private fun DsModalButton(text: String, variant: DsBtn, onClick: () -> Unit) {
     val fg = if (variant == DsBtn.Outlined) c.labelPrimary
         else androidx.compose.ui.graphics.Color(0xFFFFFFFF)
     Box(Modifier.defaultMinSize(minWidth = 72.dp, minHeight = 40.dp)
-        .clip(RoundedCornerShape(4096.dp))
+        .clip(RoundedCornerShape(16.dp))
         .background(bg)
         .then(if (variant == DsBtn.Outlined)
-            Modifier.border(1.dp, c.borderL2, RoundedCornerShape(4096.dp)) else Modifier)
+            Modifier.border(1.dp, c.borderL2, RoundedCornerShape(16.dp)) else Modifier)
         .padding(horizontal = 14.dp, vertical = 7.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center) {
         Text(text, fontSize = 14.sp, lineHeight = 22.sp,
