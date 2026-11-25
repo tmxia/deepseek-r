@@ -21,33 +21,31 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    val keystorePropsFile = rootProject.file("keystore.properties")
-    val keystoreProps = Properties()
-    if (keystorePropsFile.isFile) {
-        keystorePropsFile.inputStream().use { keystoreProps.load(it) }
-    }
-    val releaseStorePath = keystoreProps.getProperty("storeFile")
-        ?: System.getenv("ANDROID_KEYSTORE_PATH")
-    val releaseStorePassword = keystoreProps.getProperty("storePassword")
-        ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
-    val releaseKeyAlias = keystoreProps.getProperty("keyAlias")
-        ?: System.getenv("ANDROID_KEY_ALIAS")
-    val releaseKeyPassword = keystoreProps.getProperty("keyPassword")
-        ?: System.getenv("ANDROID_KEY_PASSWORD")
-    val releaseStoreFile = releaseStorePath?.takeIf { it.isNotBlank() }?.let { rootProject.file(it) }
-    val hasReleaseSigning = releaseStoreFile != null &&
-        releaseStoreFile.isFile &&
-        !releaseStorePassword.isNullOrBlank() &&
-        !releaseKeyAlias.isNullOrBlank() &&
-        !releaseKeyPassword.isNullOrBlank()
+    
+
+    
+
+    // 直接从 CI 提供的环境变量中读取签名信息
+    val env = System.getenv()
+    val releaseStorePath = env["RELEASE_STORE_FILE"]
+    val releaseStorePassword = env["RELEASE_STORE_PASSWORD"]
+    val releaseKeyAlias = env["RELEASE_KEY_ALIAS"]
+    val releaseKeyPassword = env["RELEASE_KEY_PASSWORD"]
+
+    val hasReleaseSigning = !releaseStorePath.isNullOrBlank() &&
+            file(releaseStorePath).exists() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
 
     signingConfigs {
-        create("release") {
-            val env = System.getenv()
-            storeFile = file(env["RELEASE_STORE_FILE"] ?: "release.jks")
-            storePassword = env["RELEASE_STORE_PASSWORD"]
-            keyAlias = env["RELEASE_KEY_ALIAS"] ?: "dsreplica"
-            keyPassword = env["RELEASE_KEY_PASSWORD"]
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
         }
     }
 
@@ -59,10 +57,11 @@ android {
                 "\"${project.findProperty("apiOrigin") ?: "https://api.deepseek.com"}\"")
         }
         release {
-            buildConfigField("String", "API_ORIGIN", "\"https://api.deepseek.com\"")
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            buildConfigField("String", "API_ORIGIN", "\"https://api.deepseek.com\"")
+            
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
