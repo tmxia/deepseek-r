@@ -461,12 +461,12 @@ private fun RenderBlock(
                 val codeLineCount = remember(trimmedCode) { trimmedCode.trim().split('\n').size }
                 val needsFold = codeLineCount > 5
                 var collapsed by remember(trimmedCode) { mutableStateOf(true) }
-                val codeScroll = rememberScrollState()
+                // ref CodeBlock <pre>：white-space pre-wrap + overflow-wrap anywhere，
+                // 长行在容器宽度内自动换行；不做横向滚动，避免折叠/展开间 intrinsic
+                // 宽度与滚动状态重算导致的布局跳闪。
                 Box(
                     Modifier.fillMaxWidth()
                         .background(c.markdownCodeBlockBanner)
-                        .then(if (codeScroll.maxValue > 0) Modifier.excludeFromDrawerGesture() else Modifier)
-                        .horizontalScroll(codeScroll)
                 ) {
                     val highlightedCode = remember(trimmedCode, c.dark, lang) { highlightCode(trimmedCode, c, lang) }
                     Text(
@@ -476,7 +476,7 @@ private fun RenderBlock(
                         maxLines = if (needsFold && collapsed) 5 else Int.MAX_VALUE,
                         overflow = TextOverflow.Clip,
                         modifier = Modifier
-                            .width(IntrinsicSize.Max)
+                            .fillMaxWidth()
                             .padding(start = 14.9.dp, end = 34.9.dp, top = 14.9.dp, bottom = 14.9.dp),
                     )
                 }

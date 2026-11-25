@@ -738,49 +738,58 @@ fun UserBubble(
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
             var collapsed by remember(msg.id) { mutableStateOf(true) }
+            val bubbleShape = RoundedCornerShape(22.dp, 22.dp, 5.dp, 22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
-                Box(Modifier.align(Alignment.TopEnd)
-                    .onPlaced { coordsRef.coords = it }
-                    .clip(RoundedCornerShape(22.dp, 22.dp, 5.dp, 22.dp))
-                    .background(c.bubble)
-                    .combinedClickable(
-                        // ref .bubble 无 :active 变色：长按/点按都不显示 ripple，且仅通过长按菜单进入官方修改页
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        onClick = {},
-                        onLongClick = {
-                            val coords = coordsRef.coords
-                            val rect = if (coords != null && coords.isAttached) {
-                                val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
-                                androidx.compose.ui.geometry.Rect(
-                                    p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
-                                )
-                            } else androidx.compose.ui.geometry.Rect.Zero
-                            onMenu(msg, rect)
-                        })
-                    .padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Column {
+                Column(
+                    Modifier.align(Alignment.TopEnd)
+                        .clip(bubbleShape)
+                        .background(c.bubble),
+                ) {
+                    // 气泡本体：长按弹出修改菜单；折叠按钮独立于该手势容器，
+                    // 避免父级 tap/longPress 检测器与按钮 clickable 竞争导致收起失效。
+                    Box(
+                        Modifier
+                            .onPlaced { coordsRef.coords = it }
+                            .combinedClickable(
+                                // ref .bubble 无 :active 变色：长按/点按都不显示 ripple，且仅通过长按菜单进入官方修改页
+                                indication = null,
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                onClick = {},
+                                onLongClick = {
+                                    val coords = coordsRef.coords
+                                    val rect = if (coords != null && coords.isAttached) {
+                                        val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
+                                        androidx.compose.ui.geometry.Rect(
+                                            p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
+                                        )
+                                    } else androidx.compose.ui.geometry.Rect.Zero
+                                    onMenu(msg, rect)
+                                })
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                    ) {
                         Text(
                             msg.content,
                             fontSize = 15.sp, lineHeight = 24.5.sp, color = c.labelPrimary,
                             maxLines = if (needsFold && collapsed) 4 else Int.MAX_VALUE,
                             overflow = TextOverflow.Clip,
                         )
-                        // ref .foldToggle：右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary
-                        if (needsFold) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 4.dp),
-                                horizontalArrangement = Arrangement.End,
-                            ) {
-                                Text(
-                                    Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
-                                    fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) { collapsed = !collapsed },
-                                )
-                            }
+                    }
+                    // ref .foldToggle：整行可点、右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary
+                    if (needsFold) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { collapsed = !collapsed },
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
+                                fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
+                            )
                         }
                     }
                 }
