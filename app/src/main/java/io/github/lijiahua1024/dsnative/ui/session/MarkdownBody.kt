@@ -46,6 +46,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextGeometricTransform
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.unit.size
 import io.github.lijiahua1024.dsnative.ui.excludeFromDrawerGesture
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
@@ -401,7 +404,7 @@ private fun RenderBlock(
             if (lang.trim().lowercase() == "mermaid") {
                 MermaidCodeBlock(literal, streaming, c) { code ->
                     val mScroll = rememberScrollState()
-                    val highlighted = remember(code, c.dark) { highlightCode(code, c) }
+                    val highlighted = remember(code, c.dark) { highlightCode(code, c, "mermaid") }
                     Text(
                         highlighted,
                         fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 22.sp,
@@ -453,6 +456,11 @@ private fun RenderBlock(
                     }
                 }
                 Box(Modifier.fillMaxWidth().height(0.5.dp).background(if (c.dark) c.borderL2 else Color(0xFFEBEBEB)))
+                val trimmedCode = remember(literal) { literal.trimEnd('\n') }
+                // ref CodeBlock: FOLD_LINES=5，按逻辑行判定，不足阈值不渲染折叠按钮
+                val codeLineCount = remember(trimmedCode) { trimmedCode.trim().split('\n').size }
+                val needsFold = codeLineCount > 5
+                var collapsed by remember(trimmedCode) { mutableStateOf(true) }
                 val codeScroll = rememberScrollState()
                 Box(
                     Modifier.fillMaxWidth()
@@ -460,16 +468,44 @@ private fun RenderBlock(
                         .then(if (codeScroll.maxValue > 0) Modifier.excludeFromDrawerGesture() else Modifier)
                         .horizontalScroll(codeScroll)
                 ) {
-                    val trimmedCode = remember(literal) { literal.trimEnd('\n') }
-                    val highlightedCode = remember(trimmedCode, c.dark) { highlightCode(trimmedCode, c) }
+                    val highlightedCode = remember(trimmedCode, c.dark, lang) { highlightCode(trimmedCode, c, lang) }
                     Text(
                         highlightedCode,
-                        fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.8.sp,
+                        fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp,
                         style = cssLeading,
+                        maxLines = if (needsFold && collapsed) 5 else Int.MAX_VALUE,
+                        overflow = TextOverflow.Clip,
                         modifier = Modifier
                             .width(IntrinsicSize.Max)
                             .padding(start = 14.9.dp, end = 34.9.dp, top = 14.9.dp, bottom = 14.9.dp),
                     )
+                }
+                // ref .foldToggle：margin 0 16px 12px、h28 r8 px10 gap4、13px/20px、labelSecondary
+                if (needsFold) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            Modifier
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                                .clickable { collapsed = !collapsed }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                Strings.get(if (collapsed) "expandCode" else "collapseCode"),
+                                fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
+                            )
+                            androidx.compose.material3.Icon(
+                                androidx.compose.ui.res.painterResource(io.github.lijiahua1024.dsnative.R.drawable.ic_chevron_right),
+                                null, tint = c.labelSecondary,
+                                modifier = Modifier.size(14.dp).rotate(if (collapsed) 90f else 270f),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1205,14 +1241,17 @@ private val CODE_TOKEN_RE = Regex("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|/
 private fun highlightCode(
     code: String,
     c: io.github.lijiahua1024.dsnative.theme.DsColors,
+    lang: String = "",
 ): AnnotatedString = buildAnnotatedString {
     val comment = if (c.dark) Color(0xFF8DA1B9) else Color(0xFFA0A1A7)
     val keyword = if (c.dark) Color(0xFFE9AE7E) else Color(0xFFA626A4)
     val function = if (c.dark) Color(0xFFC699E3) else Color(0xFF4078F2)
     val string = if (c.dark) Color(0xFF91D076) else Color(0xFF50A14F)
     val number = if (c.dark) Color(0xFFE6D37A) else Color(0xFF986801)
-    val className = if (c.dark) Color(0xFF6CB8E6) else Color(0xFFC18401)
-    val plain = if (c.dark) Color(0xFFE3EAF2) else Color(0xFF191B23)
+    val className = if (c.dark) Color(0xFF6CB8E6) else Color(0xFF986801)
+    // ref pre[data-lang='yaml']：yaml 裸值整体按字符串绿着色
+    val isYaml = lang.trim().lowercase() in setOf("yaml", "yml")
+    val plain = if (isYaml) string else (if (c.dark) Color(0xFFE3EAF2) else Color(0xFF191B23))
     var i = 0
     for (m in CODE_TOKEN_RE.findAll(code)) {
         if (m.range.first > i) withStyle(SpanStyle(color = plain)) { append(code.substring(i, m.range.first)) }

@@ -40,6 +40,10 @@ import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.R
 import io.github.lijiahua1024.dsnative.BuildConfig
 import io.github.lijiahua1024.dsnative.api.verifyApiKey
+import io.github.lijiahua1024.dsnative.api.fetchAccountBalance
+import io.github.lijiahua1024.dsnative.api.AccountBalance
+import io.github.lijiahua1024.dsnative.api.ApiError
+import io.github.lijiahua1024.dsnative.api.balanceCurrencySymbol
 import io.github.lijiahua1024.dsnative.data.ChatStore
 import io.github.lijiahua1024.dsnative.data.SettingsStore
 import io.github.lijiahua1024.dsnative.theme.DsTheme
@@ -276,7 +280,7 @@ fun AndroidSettings(
                     key(layerPage) {
                         Text(
                             settingsPageTitle(layerPage),
-                            fontSize = 17.sp,
+                            fontSize = 16.sp,
                             lineHeight = 24.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = c.labelPrimary,
@@ -612,7 +616,7 @@ private fun InfoGlyph(glyph: String, tint: Color) {
     Box(Modifier.size(17.dp).clip(RoundedCornerShape(50))
         .background(Color.Transparent)
         .androidBorder(1.5.dp, tint), contentAlignment = Alignment.Center) {
-        Text(glyph, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = tint, lineHeight = 12.sp)
+        Text(glyph, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = tint, lineHeight = 12.sp)
     }
 }
 
@@ -627,7 +631,7 @@ private fun SettingsGroup(label: String?, card: Color, muted: Color, topGap: and
         if (label != null) {
             Box(Modifier.height(22.dp).padding(start = 16.dp, end = 16.dp),
                 contentAlignment = Alignment.CenterStart) {
-                Text(label, fontSize = 14.sp, color = muted,
+                Text(label, fontSize = 13.sp, color = muted,
                     style = androidx.compose.ui.text.TextStyle(
                         platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)))
             }
@@ -703,6 +707,30 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
         ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
     }
     val profileChanged = draftName.trim() != savedProfile.username || draftAvatar != savedProfile.avatarDataUrl
+
+    // ref useAccountBalance：进入账号页自动查询已保存 Key 余额；后台静默刷新保留旧值，避免区域跳闪。
+    val apiKey by settings.apiKey.collectAsState()
+    var balanceNonce by remember { mutableStateOf(0) }
+    var balanceData by remember(apiKey) { mutableStateOf<AccountBalance?>(null) }
+    var balanceLoading by remember(apiKey) { mutableStateOf(false) }
+    var balanceError by remember(apiKey) { mutableStateOf<String?>(null) }
+    LaunchedEffect(apiKey, balanceNonce) {
+        val key = apiKey
+        if (key.isNullOrEmpty()) {
+            balanceData = null; balanceError = null; balanceLoading = false; return@LaunchedEffect
+        }
+        val hadData = balanceData != null
+        if (!hadData) balanceLoading = true else balanceError = null
+        try {
+            balanceData = fetchAccountBalance(key)
+            balanceLoading = false; balanceError = null
+        } catch (e: Exception) {
+            balanceLoading = false
+            if (balanceData != null) return@LaunchedEffect // 已有旧余额：后台刷新失败保留旧值
+            val unauthorized = e is ApiError && (e.status == 401 || e.status == 402)
+            balanceError = if (unauthorized) "unauthorized" else "other"
+        }
+    }
     SettingsGroup(Strings.get("settingsAccountPage"), card, muted) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -749,7 +777,7 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(Strings.get("profileUsername"), fontSize = 15.sp, color = muted)
+            Text(Strings.get("profileUsername"), fontSize = 14.sp, color = muted)
             androidx.compose.foundation.text.BasicTextField(
                 value = draftName,
                 onValueChange = { if (it.length <= 40) draftName = it },
@@ -836,6 +864,50 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                     )
                 }
+            }
+        }
+        if (apiKey != null) {
+            // ref BalancePanel：总余额 + 赠金/充值分项，支持手动刷新；后台刷新失败保留旧值。
+            val data = balanceData
+            val (valueText, valueColor) = when {
+                balanceLoading -> Strings.get("balanceLoading") to muted
+                balanceError != null -> (
+                    if (balanceError == "unauthorized") Strings.get("balanceUnauthorized")
+                    else Strings.get("balanceFailed")
+                ) to c.stateErrorPrimary
+                data != null -> {
+                    val symbol = balanceCurrencySymbol(data.currency)
+                    (if (data.isAvailable) "${symbol}${data.totalBalance}" else Strings.get("balanceLow")) to
+                        (if (data.isAvailable) c.labelPrimary else c.stateErrorPrimary)
+                }
+                else -> Strings.get("balanceLoading") to muted
+            }
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(Strings.get("balanceTitle"), fontSize = 16.sp, color = c.labelPrimary,
+                        modifier = Modifier.weight(1f))
+                    Text(valueText, fontSize = 16.sp, color = valueColor)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        painterResource(R.drawable.ic_refresh), Strings.get("balanceRefresh"),
+                        tint = muted, modifier = Modifier.size(20.dp)
+                            .clickable(enabled = !balanceLoading) { balanceNonce++ },
+                    )
+                }
+                if (data != null) {
+                    val symbol = balanceCurrencySymbol(data.currency)
+                    Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("${Strings.get("balanceGranted")} ${symbol}${data.grantedBalance}",
+                            fontSize = 13.sp, color = muted)
+                        Text("${Strings.get("balanceToppedUp")} ${symbol}${data.toppedUpBalance}",
+                            fontSize = 13.sp, color = muted)
+                    }
+                }
+            }
+            SettingsRow(c, muted, Strings.get("balanceUsageEntry"),
+                icon = { Icon(painterResource(R.drawable.ic_link), null, tint = c.labelPrimary,
+                    modifier = Modifier.size(18.dp)) }) {
+                open("https://platform.deepseek.com/usage")
             }
         }
         SettingsRow(c, muted, Strings.get("openPlatform")) { open("https://platform.deepseek.com/api_keys") }
@@ -1053,7 +1125,7 @@ private fun PersonalizationPage(c: io.github.lijiahua1024.dsnative.theme.DsColor
             RefSwitch(foldThinking) { settings.setFoldThinking(it) }
         }
     }
-    Text(Strings.get("settingsAutoFoldCaption"), fontSize = 16.sp, lineHeight = 24.sp, color = muted,
+    Text(Strings.get("settingsAutoFoldCaption"), fontSize = 13.sp, lineHeight = 21.sp, color = muted,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 27.dp))
 }
 
@@ -1326,7 +1398,7 @@ private fun ChoicePopup(
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 if (icon != null) { icon(); Spacer(Modifier.height(6.dp)) }
-                Text(title, fontSize = 18.sp, fontWeight = FontWeight.Medium, color = c.labelPrimary)
+                Text(title, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium, color = c.labelPrimary)
             }
             Column(Modifier.fillMaxWidth()
                 .drawBehind {
@@ -1587,7 +1659,7 @@ private fun DsConfirmDialog(
             ) {
                 Text(
                     title,
-                    fontSize = 17.sp,
+                    fontSize = 16.sp,
                     lineHeight = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = c.labelPrimary,

@@ -125,7 +125,7 @@ fun SessionView(
                 }
             }
             val headerTitle = session?.title?.ifEmpty { Strings.get("untitledChat") } ?: ""
-            Text(headerTitle, fontSize = 17.sp, lineHeight = 22.sp,
+            Text(headerTitle, fontSize = 14.sp, lineHeight = 22.sp,
                 fontWeight = FontWeight.Medium, color = c.labelPrimary,
                 maxLines = 1, modifier = Modifier.weight(1f).padding(start = if (showMenuButton) 10.dp else 16.dp, end = 8.dp),
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -409,13 +409,14 @@ fun SessionView(
                     .onPlaced { menuH = it.size.height },
             ) {
                 Column(Modifier.padding(4.dp)) {
-                    MenuOption(Strings.get("copy"), R.drawable.ic_copy, c.labelPrimary) {
-                        val cb = rootCtx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        cb.setPrimaryClip(android.content.ClipData.newPlainText("msg", bmsg.content))
-                        DsToast.show(Strings.get("copied"))
-                        bubbleMenu = null
-                    }
+                    // ref Web：纯附件消息没有可复制/选择的文本，复制与选择项仅在有文本时出现，菜单保留编辑入口。
                     if (bmsg.content.isNotEmpty()) {
+                        MenuOption(Strings.get("copy"), R.drawable.ic_copy, c.labelPrimary) {
+                            val cb = rootCtx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            cb.setPrimaryClip(android.content.ClipData.newPlainText("msg", bmsg.content))
+                            DsToast.show(Strings.get("copied"))
+                            bubbleMenu = null
+                        }
                         MenuOption(Strings.get("androidSelectText"), R.drawable.ic_select_text, c.labelPrimary) {
                             bubbleMenu = null
                             selectTextTarget = bmsg.content
@@ -596,8 +597,8 @@ fun Welcome(modifier: Modifier = Modifier, coldStart: Boolean = false, identity:
         Spacer(Modifier.height(16.dp))
         Text(
             greeting,
-            fontSize = 21.sp,
-            lineHeight = 29.sp,
+            fontSize = 18.7.sp,
+            lineHeight = 26.3.sp,
             fontWeight = FontWeight.Medium,
             color = c.labelPrimary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -734,6 +735,9 @@ fun UserBubble(
             }
         }
         if (msg.content.isNotEmpty()) {
+            // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
+            val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
+            var collapsed by remember(msg.id) { mutableStateOf(true) }
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
                 Box(Modifier.align(Alignment.TopEnd)
                     .onPlaced { coordsRef.coords = it }
@@ -755,7 +759,30 @@ fun UserBubble(
                             onMenu(msg, rect)
                         })
                     .padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(msg.content, fontSize = 16.sp, lineHeight = 24.sp, color = c.labelPrimary)
+                    Column {
+                        Text(
+                            msg.content,
+                            fontSize = 15.sp, lineHeight = 24.5.sp, color = c.labelPrimary,
+                            maxLines = if (needsFold && collapsed) 4 else Int.MAX_VALUE,
+                            overflow = TextOverflow.Clip,
+                        )
+                        // ref .foldToggle：右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary
+                        if (needsFold) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                Text(
+                                    Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
+                                    fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
+                                    modifier = Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { collapsed = !collapsed },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -764,6 +791,24 @@ fun UserBubble(
         }
         Spacer(Modifier.height(21.6.dp))
     }
+}
+
+/** ref estimateLineCount：气泡可用宽度 280px、字号 16；全角/中日韩按 1em，拉丁/数字/符号按 0.55em 估行。 */
+private fun estimateUserBubbleLines(text: String, fontSize: Int = 15): Int {
+    val charsPerLine = 280.0 / fontSize
+    var lines = 1
+    var current = 0.0
+    fun isWide(ch: Char): Boolean {
+        val cp = ch.code
+        return cp in 0x2E80..0x9FFF || cp in 0xF900..0xFDEF ||
+            cp in 0x3000..0x303F || cp in 0xFF00..0xFFEF
+    }
+    for (ch in text) {
+        if (ch == '\n') { lines += 1; current = 0.0; continue }
+        val width = if (isWide(ch)) 1.0 else 0.55
+        if (current + width > charsPerLine) { lines += 1; current = width } else current += width
+    }
+    return lines
 }
 
 /** ref getExtension：大写扩展名。 */
@@ -891,7 +936,7 @@ private fun MenuOption(label: String, icon: Int, tint: Color, onClick: () -> Uni
         verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
-        Text(label, fontSize = 14.sp, lineHeight = 24.sp, color = tint)
+        Text(label, fontSize = 15.sp, lineHeight = 24.sp, color = tint)
     }
 }
 

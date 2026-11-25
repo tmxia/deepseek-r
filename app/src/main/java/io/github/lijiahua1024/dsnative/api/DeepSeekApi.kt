@@ -106,6 +106,32 @@ suspend fun verifyApiKey(apiKey: String): Unit = withContext(Dispatchers.IO) {
     }
 }
 
+/**
+ * GET /user/balance：查询当前 Key 所属账号余额。余额是账号级信息，固定请求官方服务地址，
+ * 不跟随高级设置里的自定义端点。（ref fetchAccountBalance）
+ */
+suspend fun fetchAccountBalance(apiKey: String): AccountBalance = withContext(Dispatchers.IO) {
+    val request = Request.Builder()
+        .url("${ApiOrigin.get()}/user/balance")
+        .header("Authorization", "Bearer $apiKey")
+        .get()
+        .build()
+    try {
+        oneShotClient.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val (msg, code) = readErrorDetail(body, response.message)
+                throw ApiError(ApiErrorKind.HTTP, msg, response.code, code)
+            }
+            parseAccountBalance(body)
+        }
+    } catch (e: ApiError) {
+        throw e
+    } catch (e: java.io.IOException) {
+        throw ApiError(ApiErrorKind.NETWORK, e.message ?: e.toString())
+    }
+}
+
 /** POST /anthropic/v1/files — 返回 file_id。purpose 须在 file 之前，图片不传（ref uploadFile）。 */
 suspend fun uploadFile(
     apiKey: String,
