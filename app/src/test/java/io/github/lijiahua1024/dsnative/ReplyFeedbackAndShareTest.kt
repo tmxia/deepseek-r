@@ -1,5 +1,6 @@
 package io.github.lijiahua1024.dsnative
 
+import io.github.lijiahua1024.dsnative.data.FileAttachment
 import io.github.lijiahua1024.dsnative.data.Message
 import io.github.lijiahua1024.dsnative.data.ReplyBlock
 import io.github.lijiahua1024.dsnative.data.ReplyStatus
@@ -44,9 +45,16 @@ class ReplyFeedbackAndShareTest {
 
     @Test
     fun editMessageSubmitRequiresNonBlankIdleDraft() {
-        assertFalse(canSubmitEditedMessage("", isStreaming = false))
-        assertFalse(canSubmitEditedMessage("   \n\t ", isStreaming = false))
-        assertFalse(canSubmitEditedMessage("edited", isStreaming = true))
-        assertTrue(canSubmitEditedMessage("edited question", isStreaming = false))
+        assertFalse(canSubmitEditedMessage("", emptyList<FileAttachment>(), isStreaming = false))
+        assertFalse(canSubmitEditedMessage("   \n\t ", emptyList<FileAttachment>(), isStreaming = false))
+        assertFalse(canSubmitEditedMessage("edited", emptyList<FileAttachment>(), isStreaming = true))
+        assertTrue(canSubmitEditedMessage("edited question", emptyList<FileAttachment>(), isStreaming = false))
+    }
+
+    @Test
+    fun editMessageAllowsSubmitWithAttachmentEvenWithoutText() {
+        val att = FileAttachment(id = "f1", name = "a.jpg", size = 1L, isImage = true)
+        assertTrue(canSubmitEditedMessage("", listOf(att), isStreaming = false))
+        assertFalse(canSubmitEditedMessage("", listOf(att), isStreaming = true))
     }
 }

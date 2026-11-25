@@ -224,6 +224,49 @@ internal fun thumbFor(path: String, sizePx: Int): ImageBitmap? {
     return bmp
 }
 
+/** 缩略图按 EXIF 方向校正后解码，避免竖拍照片在气泡/草稿位横置。 */
+@SuppressLint("ProduceStateDoesNotAssignValue")
+@Composable
+internal fun orientedThumbFor(path: String, sizePx: Int): ImageBitmap? {
+    val bmp by produceState<ImageBitmap?>(initialValue = null, path) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                decodeOrientedBitmap(path, sizePx)?.asImageBitmap()
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    return bmp
+}
+
+private sealed interface PreviewDecode {
+    data object Loading : PreviewDecode
+    data class Ready(val bitmap: ImageBitmap) : PreviewDecode
+    data object Error : PreviewDecode
+}
+
+/**
+ * 全屏预览解码：按 EXIF 方向校正后再按长边缩放（ref Web `<img>` 加载完成前显示
+ * loading 占位，onError 才进入失败态）。三态分离避免旧实现「解码中先闪错误图标、
+ * 再异步出图」造成的跳闪。
+ */
+@SuppressLint("ProduceStateDoesNotAssignValue")
+@Composable
+private fun rememberPreviewDecode(path: String, maxEdge: Int): PreviewDecode {
+    val state by produceState<PreviewDecode>(PreviewDecode.Loading, path) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                decodeOrientedBitmap(path, maxEdge)?.asImageBitmap()
+                    ?.let { PreviewDecode.Ready(it) } ?: PreviewDecode.Error
+            } catch (_: Exception) {
+                PreviewDecode.Error
+            }
+        }
+    }
+    return state
+}
+
 @SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 private fun photoThumb(resolver: ContentResolver, uri: Uri, sizePx: Int): ImageBitmap? {
@@ -492,7 +535,7 @@ fun DraftAttachmentsRow(
                         .clickable { onPreview(item) },
                 ) {
                     if (item.isImage) {
-                        thumbFor(item.localPath, 320)?.let {
+                        orientedThumbFor(item.localPath, 320)?.let {
                             Image(it, item.name, Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop)
                         }
@@ -843,25 +886,37 @@ fun ImagePreviewDialog(
                     },
                 )
             } else {
-            val bmp = thumbFor(item.localPath, 2048)
-            if (bmp != null) {
-                // the content rect extends under the nav bar, so the centered
-                // image sits ~34px above the ref's viewport center
-                Image(
-                    bmp, item.name,
-                    Modifier.fillMaxSize().padding(top = 25.dp)
-                        .clickable(onClick = onClose),
-                    contentScale = ContentScale.Fit,
-                )
-            } else {
-                Column(
-                    Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(painterResource(R.drawable.ic_photo_error), null,
-                        tint = Color(0xFFF7F9FC), modifier = Modifier.size(20.dp))
-                    Text(Strings.get("androidDraftImageLoadFailed"),
-                        color = Color(0xFFF7F9FC), fontSize = 14.sp)
+            val previewDecode = rememberPreviewDecode(item.localPath, 2048)
+            when (previewDecode) {
+                PreviewDecode.Loading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            Modifier.size(28.dp),
+                            color = Color(0xFFF7F9FC),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
+                is PreviewDecode.Ready -> {
+                    // the content rect extends under the nav bar, so the centered
+                    // image sits ~34px above the ref's viewport center
+                    Image(
+                        previewDecode.bitmap, item.name,
+                        Modifier.fillMaxSize().padding(top = 25.dp)
+                            .clickable(onClick = onClose),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+                PreviewDecode.Error -> {
+                    Column(
+                        Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_photo_error), null,
+                            tint = Color(0xFFF7F9FC), modifier = Modifier.size(20.dp))
+                        Text(Strings.get("androidDraftImageLoadFailed"),
+                            color = Color(0xFFF7F9FC), fontSize = 14.sp)
+                    }
                 }
             }
             // .previewControls：右下 right/bottom 16px fixed（ref 用 button-nav
@@ -887,7 +942,7 @@ fun ImagePreviewDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (bmp != null) {
+                if (previewDecode is PreviewDecode.Ready && onConfirmCrop != null) {
                     Row(
                         Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF20242B))

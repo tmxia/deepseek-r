@@ -858,7 +858,7 @@ private fun MessageFileView(
             .border(1.dp, if (uploadError != null) c.stateErrorPrimary else c.borderL2,
                 RoundedCornerShape(16.dp))
             .clickable { preview = true }) {
-            file.localPath?.let { io.github.lijiahua1024.dsnative.ui.input.thumbFor(it, 320) }
+            file.localPath?.let { io.github.lijiahua1024.dsnative.ui.input.orientedThumbFor(it, 320) }
                 ?.let { Image(it, file.name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             if (uploading) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)),

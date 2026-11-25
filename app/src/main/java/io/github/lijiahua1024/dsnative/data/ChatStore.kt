@@ -1047,14 +1047,28 @@ class ChatStore(
     }
 
     /** 编辑一条 user 消息并重新生成其回答（产生新版本分支）。 */
-    fun editMessage(sessionId: String, messageId: String, newContent: String) {
+    fun editMessage(
+        sessionId: String,
+        messageId: String,
+        newContent: String,
+        nextFiles: List<FileAttachment>? = null,
+    ) {
         if (_importingHistory.value || streamJobs.containsKey(sessionId)) return
         val session = _sessionCache.value[sessionId] ?: return
         val path = visibleMessages(session)
         val index = path.indexOfFirst { it.id == messageId }
         val original = path.getOrNull(index) as? Message.User ?: return
+        // ref Web editMessage: files = nextFiles ?? previous.files；未改动沿用原附件，
+        // 仅当文本与附件皆空时拒绝。纯图片/文件消息因此可以正常编辑保留附件。
+        val files = nextFiles ?: original.files
+        if (newContent.isBlank() && files.isEmpty()) return
         val history = path.subList(0, index)
-        val question = original.copy(id = createId(), content = newContent, createdAt = System.currentTimeMillis())
+        val question = original.copy(
+            id = createId(),
+            content = newContent.trim(),
+            files = files,
+            createdAt = System.currentTimeMillis(),
+        )
         val reply = createReply()
         scope.launch {
             updateSession(sessionId) { appendBranch(it, original.parentId, listOf(question, reply)) }
