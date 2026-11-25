@@ -879,10 +879,9 @@ private fun MessageFileView(
     val c = DsTheme.colors
     var preview by remember { mutableStateOf(false) }
     val uploadError = reply?.takeIf { it.error?.kind == "upload" }
-                    var showImageMenu by remember { mutableStateOf(false) }
     val uploading = file.serverId == null && reply?.status == ReplyStatus.PENDING
 
-            if (file.isImage) {
+if (file.isImage) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
             var showImageMenu by remember { mutableStateOf(false) }
             Box(Modifier.size(imgSize)
@@ -941,57 +940,6 @@ private fun MessageFileView(
                 }
             }
         } else {
-                                    io.github.lijiahua1024.dsnative.ui.session.DsToast.show("保存失败")
-                                }
-                            }
-                        }
-                    )
-                    DropdownMenuItem(modifier = Modifier.fillMaxWidth(),
-                        modifier = Modifier.fillMaxWidth(),
-                        text = { Text("取消", fontSize = 14.sp, color = c.labelPrimary) },
-                        onClick = { showImageMenu = false }
-                    )
-                }
-            }
-        }
-    } else {
-        // ref FileCard .card：240px min-h64 pad 0/12/0/14 r16 border l2 bg input-major
-        Row(Modifier.width(240.dp).defaultMinSize(minHeight = 64.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, if (uploadError != null) c.stateErrorPrimary else c.borderL2,
-                RoundedCornerShape(16.dp))
-            .background(c.inputMajor)
-            .clickable(uploadError != null) { chatStore.retryUpload(sessionId, uploadError!!.id) }
-            .padding(start = 14.dp, end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(28.dp).padding(end = 0.dp), contentAlignment = Alignment.Center) {
-                when {
-                    uploading -> CircularProgressIndicator(Modifier.size(16.dp),
-                        color = c.labelTertiary, strokeWidth = 2.dp)
-                    uploadError != null -> Icon(painterResource(R.drawable.ic_refresh), null,
-                        tint = c.labelSecondary, modifier = Modifier.size(18.dp))
-                    else -> Icon(painterResource(fileIconRes(fileExt(file.name))), null,
-                        tint = Color.Unspecified, modifier = Modifier.size(28.dp))
-                }
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
-                Text(file.name, fontSize = 14.sp, lineHeight = 22.sp,
-                    fontWeight = FontWeight.W400, color = c.labelPrimary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    when {
-                        uploading -> Strings.get("uploadFileStatusUploading")
-                        uploadError != null -> Strings.get("uploadFileStatusFailed")
-                        else -> listOf(fileExt(file.name), formatFileSize(file.size))
-                            .filter { it.isNotEmpty() }.joinToString(" ")
-                    },
-                    fontSize = 12.sp, lineHeight = 18.sp,
-                    color = if (uploadError != null) c.stateErrorPrimary else c.labelTertiary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
     if (preview) {
         io.github.lijiahua1024.dsnative.ui.input.ImagePreviewDialog(
             DraftAttachment(file.id, file.name, file.mimeType, file.isImage,
