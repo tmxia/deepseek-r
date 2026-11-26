@@ -196,6 +196,23 @@ private data class ParsedMarkdownChunk(
 
 private val markdownChunkCache = object : android.util.LruCache<String, ParsedMarkdownChunk>(64) {}
 
+/** 代码高亮 AnnotatedString 跨实例缓存：回收重挂命中即免全量正则；键含明暗主题与语言。 */
+private val highlightCache = object : android.util.LruCache<String, AnnotatedString>(64) {
+    override fun sizeOf(key: String, value: AnnotatedString): Int = value.text.length + 16
+}
+
+private fun getHighlighted(
+    code: String,
+    c: io.github.lijiahua1024.dsnative.theme.DsColors,
+    lang: String,
+): AnnotatedString {
+    val key = (if (c.dark) "d" else "l") + '|' + lang + '|' + code
+    synchronized(highlightCache) { highlightCache.get(key)?.let { return it } }
+    return highlightCode(code, c, lang).also {
+        synchronized(highlightCache) { highlightCache.put(key, it) }
+    }
+}
+
 private fun getParsedMarkdownChunk(rawChunk: String): ParsedMarkdownChunk {
     synchronized(markdownChunkCache) {
         markdownChunkCache.get(rawChunk)?.let { return it }
@@ -405,7 +422,7 @@ private fun RenderBlock(
             if (lang.trim().lowercase() == "mermaid") {
                 MermaidCodeBlock(literal, streaming, c) { code ->
                     val mScroll = rememberScrollState()
-                    val highlighted = remember(code, c.dark) { highlightCode(code, c, "mermaid") }
+                    val highlighted = remember(code, c.dark) { getHighlighted(code, c, "mermaid") }
                     Text(
                         highlighted,
                         fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 22.sp,
@@ -485,7 +502,7 @@ private fun RenderBlock(
                     val highlightSource = if (needsFold && collapsed) {
                         trimmedCode.lines().take(5).joinToString("\n")
                     } else trimmedCode
-                    val highlightedCode = remember(highlightSource, c.dark, lang) { highlightCode(highlightSource, c, lang) }
+                    val highlightedCode = remember(highlightSource, c.dark, lang) { getHighlighted(highlightSource, c, lang) }
                     Text(
                         highlightedCode,
                         fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp,

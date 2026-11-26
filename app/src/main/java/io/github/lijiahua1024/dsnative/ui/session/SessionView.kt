@@ -1077,6 +1077,7 @@ fun AssistantView(
     ) {
     CompositionLocalProvider(LocalSources provides sources) {
         val renderBlocks = remember(msg.blocks, sources) { withCitationMarkers(msg.blocks, sources) }
+        val toolById = remember(msg.blocks) { buildToolById(msg.blocks) }
         var prevWasStep = false
         for (block in renderBlocks) {
             when (block) {
@@ -1086,7 +1087,7 @@ fun AssistantView(
                     streaming = msg.status == ReplyStatus.STREAMING)
                     .also { prevWasStep = false }
                 is ReplyBlock.Tool -> {
-                    val step = toolStep(block, msg.blocks, sources, msg.status == ReplyStatus.STREAMING)
+                    val step = toolStepWithById(block, toolById, sources, msg.status == ReplyStatus.STREAMING)
                     when (step) {
                         is ToolStep.Search -> { SearchStepRow(step, openSources, stopped = msg.status == ReplyStatus.STOPPED); prevWasStep = true }
                         is ToolStep.Open -> { OpenStepRow(step, openSources); prevWasStep = true }

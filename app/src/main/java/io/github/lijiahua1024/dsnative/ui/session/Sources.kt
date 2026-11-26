@@ -242,9 +242,26 @@ private fun toolStatus(status: String?): ToolStatus = when (status) {
     else -> ToolStatus.FAILED
 }
 
+/** 工具块 tool_use_id → payload 映射；同一回复内只建一次，避免每个工具块重复全量遍历。 */
+fun buildToolById(allBlocks: List<ReplyBlock>): Map<String, JsonObject> {
+    val byId = HashMap<String, JsonObject>()
+    for (b in allBlocks) {
+        if (b !is ReplyBlock.Tool) continue
+        b.payload.str("tool_use_id")?.let { byId[it] = b.payload }
+    }
+    return byId
+}
+
 fun toolStep(
     block: ReplyBlock.Tool,
     allBlocks: List<ReplyBlock>,
+    registry: List<Source>,
+    streaming: Boolean = true,
+): ToolStep? = toolStepWithById(block, buildToolById(allBlocks), registry, streaming)
+
+internal fun toolStepWithById(
+    block: ReplyBlock.Tool,
+    byId: Map<String, JsonObject>,
     registry: List<Source>,
     streaming: Boolean = true,
 ): ToolStep? {
@@ -253,12 +270,6 @@ fun toolStep(
     val input = p.obj("input") ?: return null
     val action = input.str("action") ?: ""
     val kind = p.str("kind") ?: action.ifEmpty { "search" }
-    val byId = HashMap<String, JsonObject>()
-    for (b in allBlocks) {
-        if (b !is ReplyBlock.Tool) continue
-        val r = b.payload
-        r.str("tool_use_id")?.let { byId[it] = r }
-    }
     val r = p.str("id")?.let { byId[it] }
     val isSearch = action in SEARCH_TOOL_NAMES || (action.isEmpty() && kind in SEARCH_TOOL_NAMES)
     if (isSearch) {
