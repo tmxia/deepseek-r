@@ -19,6 +19,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -754,7 +755,9 @@ fun UserBubble(
         if (msg.content.isNotEmpty()) {
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
-            var collapsed by remember(msg.id) { mutableStateOf(true) }
+            // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
+            // 或折叠选择，不会被重置回默认折叠（修复展开后等待片刻自动收回、手动收起不生效）。
+            var collapsed by rememberSaveable(msg.id) { mutableStateOf(true) }
             val bubbleShape = RoundedCornerShape(22.dp, 22.dp, 5.dp, 22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
                 Column(
@@ -780,31 +783,24 @@ fun UserBubble(
                             overflow = TextOverflow.Clip,
                         )
                     }
-                    // ref .foldToggle：整行可点、右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary
+                    // ref .foldToggle：整行可点、右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary。
+                    // 按钮独立于气泡本体 combinedClickable 容器，避免父级 tap/longPress 检测器
+                    // 与按钮 clickable 竞争导致收起失效（对齐历史已验证的修复态 ea4a05e）。
                     if (needsFold) {
                         Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { collapsed = !collapsed },
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // 按钮做成独立内层可点击单元（与代码块折叠按钮同构）：clickable 挂在
-                            // clip 后、padding 前，命中区为整个按钮块，避免外层气泡手势链与
-                            // 单层 Row 的 padding/clickable 顺序歧义导致第二次点击（收起）不触发。
-                            Row(
-                                Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) { collapsed = !collapsed }
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
-                                    fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
-                                )
-                            }
+                            Text(
+                                Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
+                                fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
+                            )
                         }
                     }
                 }
