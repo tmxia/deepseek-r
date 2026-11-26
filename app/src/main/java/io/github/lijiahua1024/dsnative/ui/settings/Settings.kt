@@ -3,6 +3,11 @@ package io.github.lijiahua1024.dsnative.ui.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -713,19 +718,21 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
     var balanceNonce by remember { mutableStateOf(0) }
     var balanceData by remember(apiKey) { mutableStateOf<AccountBalance?>(null) }
     var balanceLoading by remember(apiKey) { mutableStateOf(false) }
+    var balanceRefreshing by remember(apiKey) { mutableStateOf(false) }
     var balanceError by remember(apiKey) { mutableStateOf<String?>(null) }
     LaunchedEffect(apiKey, balanceNonce) {
         val key = apiKey
         if (key.isNullOrEmpty()) {
-            balanceData = null; balanceError = null; balanceLoading = false; return@LaunchedEffect
+            balanceData = null; balanceError = null; balanceLoading = false; balanceRefreshing = false
+            return@LaunchedEffect
         }
         val hadData = balanceData != null
-        if (!hadData) balanceLoading = true else balanceError = null
+        if (hadData) { balanceRefreshing = true; balanceError = null } else balanceLoading = true
         try {
             balanceData = fetchAccountBalance(key)
-            balanceLoading = false; balanceError = null
+            balanceLoading = false; balanceRefreshing = false; balanceError = null
         } catch (e: Exception) {
-            balanceLoading = false
+            balanceLoading = false; balanceRefreshing = false
             if (balanceData != null) return@LaunchedEffect // 已有旧余额：后台刷新失败保留旧值
             val unauthorized = e is ApiError && (e.status == 401 || e.status == 402)
             balanceError = if (unauthorized) "unauthorized" else "other"
@@ -883,16 +890,33 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
                 else -> Strings.get("balanceLoading") to muted
             }
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)) {
+                val refreshing = balanceRefreshing
+                val refreshEnabled = !balanceLoading && !refreshing
+                val refreshTransition = rememberInfiniteTransition(label = "balanceRefresh")
+                val refreshAngle by refreshTransition.animateFloat(
+                    initialValue = 0f, targetValue = 360f,
+                    animationSpec = infiniteRepeatable(tween(700, easing = LinearEasing)),
+                    label = "balanceRefreshAngle",
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(Strings.get("balanceTitle"), fontSize = 16.sp, color = c.labelPrimary,
                         modifier = Modifier.weight(1f))
                     Text(valueText, fontSize = 16.sp, color = valueColor)
                     Spacer(Modifier.width(8.dp))
-                    Icon(
-                        painterResource(R.drawable.ic_refresh), Strings.get("balanceRefresh"),
-                        tint = muted, modifier = Modifier.size(20.dp)
-                            .clickable(enabled = !balanceLoading) { balanceNonce++ },
-                    )
+                    // ref .balanceRefresh：28dp 圆形命中区、16dp 图标；刷新中旋转、禁用半透明。
+                    Box(
+                        Modifier.size(28.dp).alpha(if (refreshEnabled) 1f else 0.5f)
+                            .clickable(enabled = refreshEnabled) { balanceNonce++ },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_refresh), Strings.get("balanceRefresh"),
+                            tint = muted,
+                            modifier = Modifier.size(16.dp).then(
+                                if (refreshing) Modifier.graphicsLayer { rotationZ = refreshAngle } else Modifier,
+                            ),
+                        )
+                    }
                 }
                 if (data != null) {
                     val symbol = balanceCurrencySymbol(data.currency)

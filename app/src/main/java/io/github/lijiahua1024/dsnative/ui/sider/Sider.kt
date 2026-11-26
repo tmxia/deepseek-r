@@ -408,8 +408,12 @@ fun Sider(
             // Match official drawer footer: 62dp row, flush 16dp start, 32dp avatar + username
             val profile by settings.accountProfile.collectAsState()
             val displayName = profile.username.ifBlank { Strings.get("profileDefaultUsername") }
+            // ref .settings：Android 按压透明/淡骨架色，不使用默认中性灰涟漪整块背景。
+            val profilePress = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            val profilePressed by profilePress.collectIsPressedAsState()
             Row(Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onNavigateSettings),
+                    .background(DsTheme.pressTint(profilePressed, c.bgSkeleton))
+                    .clickable(interactionSource = profilePress, indication = null, onClick = onNavigateSettings),
                 verticalAlignment = Alignment.CenterVertically) {
                 io.github.lijiahua1024.dsnative.ui.settings.ProfileAvatarView(
                     avatarDataUrl = profile.avatarDataUrl,
