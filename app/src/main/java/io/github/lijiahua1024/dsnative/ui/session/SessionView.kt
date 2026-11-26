@@ -134,7 +134,7 @@ fun SessionView(
                 }
             }
             val headerTitle = session?.title?.ifEmpty { Strings.get("untitledChat") } ?: ""
-            Text(headerTitle, fontSize = 17.sp, lineHeight = 22.sp,
+            Text(headerTitle, fontSize = 15.sp, lineHeight = 17.42.sp,
                 fontWeight = FontWeight.Medium, color = c.labelPrimary,
                 maxLines = 1, modifier = Modifier.weight(1f).padding(start = if (showMenuButton) 10.dp else 16.dp, end = 8.dp),
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
@@ -735,7 +735,7 @@ fun UserBubble(
         } else androidx.compose.ui.geometry.Rect.Zero
         onMenu(msg, rect)
     }
-    Column(Modifier.fillMaxWidth().padding(top = 22.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 11.38.dp)) {
         // ref .files: wrap 行右对齐 gap 10px mb 8px；混排文档时缩略图 64px
         if (msg.files.isNotEmpty()) {
             val hasDoc = msg.files.any { !it.isImage }
@@ -766,7 +766,7 @@ fun UserBubble(
             // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
             // 或折叠选择，不会被重置回默认折叠（修复展开后等待片刻自动收回、手动收起不生效）。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(true) }
-            val bubbleShape = RoundedCornerShape(22.dp, 22.dp, 5.dp, 22.dp)
+            val bubbleShape = RoundedCornerShape(22.dp, 22.dp, 4.dp, 22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
                 Column(
                     Modifier.align(Alignment.TopEnd)
@@ -781,7 +781,7 @@ fun UserBubble(
                             .pointerInput(msg.id) {
                                 detectTapGestures(onLongPress = { openMenu() })
                             }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = 14.93.dp, vertical = 10.13.dp),
                     ) {
                         Text(
                             msg.content,
@@ -815,7 +815,7 @@ fun UserBubble(
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
             BranchSwitcher(sessionId, siblingIds, msg.id, chatStore)
         }
-        Spacer(Modifier.height(21.6.dp))
+        Spacer(Modifier.height(10.37.dp))
     }
 }
 

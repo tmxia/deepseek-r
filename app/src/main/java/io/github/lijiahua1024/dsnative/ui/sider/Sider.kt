@@ -324,7 +324,7 @@ fun Sider(
                         Modifier.fillMaxWidth().padding(top = (if (gi == 0) 2 else 12).dp, start = 6.dp, end = 6.dp).height(26.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(label, fontSize = 13.sp, color = c.labelTertiary, fontWeight = FontWeight.Normal,
+                        Text(label, fontSize = 12.sp, lineHeight = 18.sp, color = c.labelTertiary, fontWeight = FontWeight.Normal,
                             style = androidx.compose.ui.text.TextStyle(
                                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)),
                             modifier = Modifier.weight(1f))
@@ -772,8 +772,8 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
     val pressSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val pressed by pressSrc.collectIsPressedAsState()
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 2.dp).height(50.dp)
-            .clip(SiderRowShape)
+        Modifier.fillMaxWidth().height(44.8.dp)
+            .clip(RoundedCornerShape(16.dp))
             // selection rows render as plain .select buttons — no active accent;
             // ref .item:active -> bg-skeleton
             .background(
@@ -788,7 +788,7 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
                 }
             )
             .combinedClickable(pressSrc, null, onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 6.dp, end = 6.dp),
+            .padding(start = 20.62.dp, end = 20.62.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selectionMode) {
@@ -805,7 +805,7 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
             )
             Spacer(Modifier.width(10.dp))
         }
-        Text(s.title.ifEmpty { Strings.get("untitledChat") }, fontSize = 15.sp,
+        Text(s.title.ifEmpty { Strings.get("untitledChat") }, fontSize = 15.sp, lineHeight = 22.4.sp,
             color = when {
                 pressPhase != SessionPressPhase.Rest -> if (c.dark) c.brandText else Color(0xFF3269EF)
                 active && !selectionMode -> c.brandText
