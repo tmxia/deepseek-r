@@ -573,10 +573,17 @@ private enum class DsBtn { Outlined, Primary, Danger }
 @Composable
 private fun DsModalButton(text: String, variant: DsBtn, onClick: () -> Unit) {
     val c = DsTheme.colors
-    val bg = when (variant) {
+    // 去默认灰色涟漪：填充按钮按压整体变淡(alpha 0.8)，描边按钮按压极淡浅灰；clip 先于背景保护圆角。
+    val pressSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by pressSrc.collectIsPressedAsState()
+    val restBg = when (variant) {
         DsBtn.Primary -> c.brandPrimary
         DsBtn.Danger -> c.stateErrorPrimary
         DsBtn.Outlined -> androidx.compose.ui.graphics.Color.Transparent
+    }
+    val bg = when (variant) {
+        DsBtn.Outlined -> if (pressed) c.bgSkeleton else androidx.compose.ui.graphics.Color.Transparent
+        else -> if (pressed) restBg.copy(alpha = 0.8f) else restBg
     }
     val fg = if (variant == DsBtn.Outlined) c.labelPrimary
         else androidx.compose.ui.graphics.Color(0xFFFFFFFF)
@@ -585,7 +592,8 @@ private fun DsModalButton(text: String, variant: DsBtn, onClick: () -> Unit) {
         .background(bg)
         .then(if (variant == DsBtn.Outlined)
             Modifier.border(1.dp, c.borderL2, RoundedCornerShape(16.dp)) else Modifier)
-        .padding(horizontal = 14.dp, vertical = 7.dp).clickable(onClick = onClick),
+        .padding(horizontal = 14.dp, vertical = 7.dp)
+        .clickable(interactionSource = pressSrc, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center) {
         Text(text, fontSize = 14.sp, lineHeight = 22.sp,
             fontWeight = if (variant == DsBtn.Outlined) FontWeight.Normal else FontWeight.Medium,

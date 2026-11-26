@@ -95,6 +95,14 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    // 发送成功后主动收起键盘、清焦点，便于直接看到回复结果。
+    val sendDraftAndHide: (String) -> Unit = { draft ->
+        chatStore.setDraft(activeId, draft)
+        chatStore.sendMessage(activeId)
+        text = ""
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
     val holdScope = androidx.compose.runtime.rememberCoroutineScope()
     val thinking by settings.thinking.collectAsState()
     val search by settings.search.collectAsState()
@@ -232,10 +240,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     // ref: hold-to-talk 转写完成直接发送（sendSpoken）；点击语音键切模式时取消录音
     VoiceInput.apiKey = { settings.apiKey.value }
     VoiceInput.onText = { t ->
-        text = t
-        chatStore.setDraft(activeId, t)
-        chatStore.sendMessage(activeId)
-        text = ""
+        sendDraftAndHide(t)
     }
     VoiceInput.onError = { key ->
         io.github.lijiahua1024.dsnative.ui.session.DsToast.show(Strings.get(key))
@@ -301,9 +306,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
             onRemove = { chatStore.removeDraftAttachment(activeId, it.id) },
             onPreview = { previewAtt = it },
             onSuggestion = { s ->
-                chatStore.setDraft(activeId, s)
-                chatStore.sendMessage(activeId)
-                text = ""
+                sendDraftAndHide(s)
             },
         )
         if (voiceMode) {
@@ -576,7 +579,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
                             .background(c.buttonPrimaryFill)
                             .clickable {
                                 if (isStreaming) chatStore.stopReply(activeId!!)
-                                else { chatStore.setDraft(activeId, text); chatStore.sendMessage(activeId); text = "" }
+                                else sendDraftAndHide(text)
                             },
                         contentAlignment = Alignment.Center,
                     ) {
