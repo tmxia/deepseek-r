@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -38,6 +39,7 @@ import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onSizeChanged
 import io.github.lijiahua1024.dsnative.theme.dsPainterResource as painterResource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -773,12 +775,11 @@ fun UserBubble(
                     Box(
                         Modifier
                             .onPlaced { coordsRef.coords = it }
-                            .combinedClickable(
-                                // ref .bubble 无 :active 变色：长按/点按都不显示 ripple，且仅通过长按菜单进入官方修改页
-                                indication = null,
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                onClick = {},
-                                onLongClick = openMenu)
+                            // 仅挂长按检测器弹菜单，不注册 tap 检测器；与折叠按钮 clickable 互不竞争
+                            // （对齐 Web：气泡本体只响应长按 contextmenu，折叠按钮 stopPropagation）。
+                            .pointerInput(msg.id) {
+                                detectTapGestures(onLongPress = { openMenu() })
+                            }
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                     ) {
                         Text(
@@ -789,8 +790,7 @@ fun UserBubble(
                         )
                     }
                     // ref .foldToggle：整行可点、右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary。
-                    // 按钮独立于气泡本体 combinedClickable 容器，避免父级 tap/longPress 检测器
-                    // 与按钮 clickable 竞争导致收起失效（对齐历史已验证的修复态 ea4a05e）。
+                    // 按钮为气泡本体的兄弟节点，独立于长按手势容器。
                     if (needsFold) {
                         Row(
                             Modifier.fillMaxWidth()
@@ -1030,7 +1030,6 @@ fun AssistantView(
     val hasFinishedReply = (msg.status == ReplyStatus.DONE || msg.status == ReplyStatus.STOPPED) &&
         replyText(msg).isNotEmpty()
     val coordsRef = remember { CoordsRef() }
-    val interactionSource = remember { MutableInteractionSource() }
     Column(
         Modifier
             .fillMaxWidth()
@@ -1039,16 +1038,17 @@ fun AssistantView(
                 if (hasFinishedReply) {
                     Modifier
                         .onPlaced { coordsRef.coords = it }
-                        .combinedClickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = {},
-                            onLongClick = {
-                                val rect = coordsRef.coords?.takeIf { it.isAttached }?.boundsInWindow()
-                                    ?: androidx.compose.ui.geometry.Rect.Zero
-                                onOpenMenu(msg, rect)
-                            },
-                        )
+                        // 只挂长按检测器弹菜单：父级不注册 tap 检测器，避免与思考块标题/内容行
+                        // 内层 clickable 竞争吞掉点击（对齐 Web：内容区仅响应长按 contextmenu）。
+                        .pointerInput(msg.id) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    val rect = coordsRef.coords?.takeIf { it.isAttached }?.boundsInWindow()
+                                        ?: androidx.compose.ui.geometry.Rect.Zero
+                                    onOpenMenu(msg, rect)
+                                },
+                            )
+                        }
                 } else Modifier,
             ),
     ) {
