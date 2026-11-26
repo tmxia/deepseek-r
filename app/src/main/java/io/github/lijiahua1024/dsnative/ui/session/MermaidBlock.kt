@@ -803,8 +803,8 @@ private fun splitEdgeChain(stmt: String): List<ChainLink> {
     val matches = EDGE_REGEX.findAll(stmt).toList()
     for (m in matches) {
         if (!isAtDepthZero(stmt, m.range.first)) continue
-        val opStr = m.groups["op"]?.value ?: continue
-        val pipeLabel = cleanMermaidText(m.groups["pipe"]?.value ?: "")
+        val opStr = m.groupValues.getOrNull(1) ?: continue
+        val pipeLabel = cleanMermaidText(m.groupValues.getOrNull(2) ?: "")
         val style = when {
             opStr.contains('=') -> EdgeStyle.THICK
             opStr.contains('.') -> EdgeStyle.DOTTED
@@ -1088,15 +1088,15 @@ private fun parseClassAsFlow(lines: List<String>): MermaidDiagram.Flowchart? {
         val cMatch = Regex("""^class\s+(\S+)\s*\{?$""").find(l)
         if (cMatch != null) {
             val cname = cMatch.groupValues[1]
-            nodes.putIfAbsent(cname, FlowNode(cname, cname, NodeShape.RECT))
+            if (!nodes.containsKey(cname)) nodes[cname] = FlowNode(cname, cname, NodeShape.RECT)
             if (l.endsWith("{")) currentClass = cname
             continue
         }
         val rel = Regex("""^(\S+)\s*([<|*.o-]+--[>|*.o-]+|[<|*.o-]+)\s*(\S+?)(?:\s*:\s*(.+))?$""").find(l)
         if (rel != null) {
             val a = rel.groupValues[1]; val b = rel.groupValues[3]
-            nodes.putIfAbsent(a, FlowNode(a, a, NodeShape.RECT))
-            nodes.putIfAbsent(b, FlowNode(b, b, NodeShape.RECT))
+            if (!nodes.containsKey(a)) nodes[a] = FlowNode(a, a, NodeShape.RECT)
+            if (!nodes.containsKey(b)) nodes[b] = FlowNode(b, b, NodeShape.RECT)
             val lbl = cleanMermaidText(rel.groupValues[4])
             val op = rel.groupValues[2]
             edges.add(FlowEdge(a, b, lbl, if (op.contains('.')) EdgeStyle.DOTTED else EdgeStyle.SOLID))
@@ -1116,8 +1116,8 @@ private fun parseErAsFlow(lines: List<String>): MermaidDiagram.Flowchart? {
     for (raw in lines) {
         val m = Regex("""^(\S+)\s+([|o}{]+--[|o}{]+)\s+(\S+)\s*:\s*(.+)$""").find(raw.trim()) ?: continue
         val a = m.groupValues[1]; val b = m.groupValues[3]
-        nodes.putIfAbsent(a, FlowNode(a, a, NodeShape.RECT))
-        nodes.putIfAbsent(b, FlowNode(b, b, NodeShape.RECT))
+        if (!nodes.containsKey(a)) nodes[a] = FlowNode(a, a, NodeShape.RECT)
+        if (!nodes.containsKey(b)) nodes[b] = FlowNode(b, b, NodeShape.RECT)
         edges.add(FlowEdge(a, b, cleanMermaidText(m.groupValues[4])))
     }
     if (nodes.isEmpty()) return null

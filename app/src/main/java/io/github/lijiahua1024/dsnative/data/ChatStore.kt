@@ -1007,7 +1007,7 @@ class ChatStore(
                 if (!img.localPath.isNullOrEmpty() && File(img.localPath).exists() &&
                     (img.serverImageConverted != true || (img.serverImageMaxEdge ?: Int.MAX_VALUE) > MANY_IMAGES_MAX_EDGE)
                 ) {
-                    oversized.putIfAbsent(img.id, img)
+                    if (!oversized.containsKey(img.id)) oversized[img.id] = img
                 }
             }
             val shrunk = LinkedHashMap<String, UploadedMeta>()

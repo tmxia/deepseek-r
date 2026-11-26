@@ -56,6 +56,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -356,7 +357,7 @@ private object SiteIconCache {
         .readTimeout(5, TimeUnit.SECONDS)
         .build()
     private val cache = object : android.util.LruCache<String, ImageBitmap>(64) {}
-    private val failed = ConcurrentHashMap.newKeySet<String>()
+    private val failed: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     fun cached(url: String): ImageBitmap? = synchronized(cache) { cache.get(url) }
 

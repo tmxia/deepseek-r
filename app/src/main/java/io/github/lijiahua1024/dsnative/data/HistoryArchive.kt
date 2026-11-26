@@ -505,7 +505,7 @@ internal fun writeSessionsArchive(
             val f = File(path)
             if (!f.isFile || !file.isImage) return@sessionToArchiveJson null
             val entryPath = imageArchivePath(session.id, file.id, file.name)
-            imageEntries.putIfAbsent(entryPath, f)
+            if (!imageEntries.containsKey(entryPath)) imageEntries[entryPath] = f
             entryPath
         }
         sessionEntries.add(sessionJsonPath(session.id) to sObj.toString())

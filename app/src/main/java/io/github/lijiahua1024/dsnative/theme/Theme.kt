@@ -25,7 +25,7 @@ fun preloadVectorIcons(context: android.content.Context, vararg ids: Int) {
         if (!preloadedVectors.containsKey(id)) {
             runCatching { ImageVector.vectorResource(theme, res, id) }
                 .getOrNull()
-                ?.let { preloadedVectors.putIfAbsent(id, it) }
+                ?.let { preloadedVectors[id] = it }
         }
     }
 }

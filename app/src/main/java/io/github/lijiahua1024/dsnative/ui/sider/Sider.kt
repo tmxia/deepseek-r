@@ -45,9 +45,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val SiderRowShape = RoundedCornerShape(12.dp)
-private val searchCalLocal = ThreadLocal.withInitial { java.util.Calendar.getInstance() }
-private val searchZhFmtLocal = ThreadLocal.withInitial { java.text.SimpleDateFormat("M月d日", java.util.Locale.CHINA) }
-private val searchEnFmtLocal = ThreadLocal.withInitial { java.text.SimpleDateFormat("MMM d", java.util.Locale.US) }
+private val searchCalLocal = object : ThreadLocal<java.util.Calendar>() {
+    override fun initialValue(): java.util.Calendar = java.util.Calendar.getInstance()
+}
+private val searchZhFmtLocal = object : ThreadLocal<java.text.SimpleDateFormat>() {
+    override fun initialValue(): java.text.SimpleDateFormat =
+        java.text.SimpleDateFormat("M月d日", java.util.Locale.CHINA)
+}
+private val searchEnFmtLocal = object : ThreadLocal<java.text.SimpleDateFormat>() {
+    override fun initialValue(): java.text.SimpleDateFormat =
+        java.text.SimpleDateFormat("MMM d", java.util.Locale.US)
+}
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
