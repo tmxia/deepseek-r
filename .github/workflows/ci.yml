@@ -1,10 +1,7 @@
 name: Android CI
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch: # 仅允许在 GitHub 页面手动点击触发，不再随 push 自动运行
 
 jobs:
   verify:
