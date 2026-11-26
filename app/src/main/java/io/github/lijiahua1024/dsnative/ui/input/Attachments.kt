@@ -227,14 +227,24 @@ internal fun thumbFor(path: String, sizePx: Int): ImageBitmap? {
     return bmp
 }
 
-/** 缩略图：按 EXIF 方向校正后再缩放（剥离位图缓存，纯解码态）。 */
+// 消息/草稿缩略图位图跨实例缓存：ImageBitmap 只读渲染，回收重挂命中即免磁盘 IO 解码；
+// 键含路径与请求尺寸，替换草稿路径名带 UUID 天然区分。
+private val thumbBitmapCache = object : android.util.LruCache<String, ImageBitmap>(64) {
+    override fun sizeOf(key: String, value: ImageBitmap): Int = 1
+}
+
+/** 缩略图：按 EXIF 方向校正后再缩放（命中位图缓存则免解码）。 */
 @SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 internal fun orientedThumbFor(path: String, sizePx: Int): ImageBitmap? {
+    val cacheKey = "$path|$sizePx"
+    synchronized(thumbBitmapCache) { thumbBitmapCache.get(cacheKey)?.let { return it } }
     val bmp by produceState<ImageBitmap?>(initialValue = null, path, sizePx) {
         value = withContext(Dispatchers.IO) {
             try {
-                decodeOrientedBitmap(path, sizePx)?.asImageBitmap()
+                decodeOrientedBitmap(path, sizePx)?.asImageBitmap()?.also { b ->
+                    synchronized(thumbBitmapCache) { thumbBitmapCache.put(cacheKey, b) }
+                }
             } catch (_: Exception) {
                 null
             }

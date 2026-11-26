@@ -405,7 +405,7 @@ private fun RenderBlock(
             if (lang.trim().lowercase() == "mermaid") {
                 MermaidCodeBlock(literal, streaming, c) { code ->
                     val mScroll = rememberScrollState()
-                    val highlighted = remember(code, c.dark) { highlightCode(code, c) }
+                    val highlighted = remember(code, c.dark) { getHighlighted(code, c) }
                     Text(
                         highlighted,
                         fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 22.sp,
@@ -484,7 +484,7 @@ private fun RenderBlock(
                     val highlightSource = if (needsFold && collapsed) {
                         trimmedCode.lines().take(5).joinToString("\n")
                     } else trimmedCode
-                    val highlightedCode = remember(highlightSource, c.dark, lang) { highlightCode(highlightSource, c, lang) }
+                    val highlightedCode = remember(highlightSource, c.dark, lang) { getHighlighted(highlightSource, c, lang) }
                     Text(
                         highlightedCode,
                         fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp,
@@ -1252,6 +1252,24 @@ private val KEYWORDS = setOf(
 
 private val BOOLEANS = setOf("true", "false", "True", "False")
 private val CODE_TOKEN_RE = Regex("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|//[^\n]*|#[^\n]*|/\\*[\\s\\S]*?\\*/|\\b\\d+(\\.\\d+)?\\b|\\b[A-Za-z_][A-Za-z0-9_]*\\b)")
+
+// 代码高亮 AnnotatedString 跨实例缓存：产物为纯 SpanStyle 文本数据、不可变，
+// 回收重挂命中即免重复正则扫描与组装；键含明暗主题与语言。
+private val highlightCache = object : android.util.LruCache<String, AnnotatedString>(64) {
+    override fun sizeOf(key: String, value: AnnotatedString): Int = key.length + 16
+}
+
+private fun getHighlighted(
+    code: String,
+    c: io.github.lijiahua1024.dsnative.theme.DsColors,
+    lang: String = "",
+): AnnotatedString {
+    val key = "${c.dark}|$lang|$code"
+    synchronized(highlightCache) { highlightCache.get(key)?.let { return it } }
+    return highlightCode(code, c, lang).also {
+        synchronized(highlightCache) { highlightCache.put(key, it) }
+    }
+}
 
 // Atom One Light palette matching official DeepSeek code card (light + dark)
 private fun highlightCode(
