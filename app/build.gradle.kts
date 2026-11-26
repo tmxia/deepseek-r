@@ -27,13 +27,13 @@ android {
         keystorePropsFile.inputStream().use { keystoreProps.load(it) }
     }
     val releaseStorePath = keystoreProps.getProperty("storeFile")
-        ?: System.getenv("ANDROID_KEYSTORE_PATH")
+        ?: System.getenv("RELEASE_STORE_FILE")
     val releaseStorePassword = keystoreProps.getProperty("storePassword")
-        ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+        ?: System.getenv("RELEASE_STORE_PASSWORD")
     val releaseKeyAlias = keystoreProps.getProperty("keyAlias")
-        ?: System.getenv("ANDROID_KEY_ALIAS")
+        ?: System.getenv("RELEASE_KEY_ALIAS")
     val releaseKeyPassword = keystoreProps.getProperty("keyPassword")
-        ?: System.getenv("ANDROID_KEY_PASSWORD")
+        ?: System.getenv("RELEASE_KEY_PASSWORD")
     val releaseStoreFile = releaseStorePath?.takeIf { it.isNotBlank() }?.let { rootProject.file(it) }
     val hasReleaseSigning = releaseStoreFile != null &&
         releaseStoreFile.isFile &&
