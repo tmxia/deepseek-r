@@ -18,7 +18,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
@@ -454,6 +457,7 @@ private fun AttachmentAction(modifier: Modifier, icon: Int, label: String, onCli
  * ref AndroidDraftAttachments + DraftAttachments：卡片内 textarea 上方的
  * 80x80 缩略图行 + 图片附件专属快捷建议 chips。
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DraftAttachmentsRow(
     items: List<DraftAttachment>,
@@ -505,7 +509,12 @@ fun DraftAttachmentsRow(
                         .clip(RoundedCornerShape(16.dp))
                         .background(c.bgSkeleton)
                         .border(1.dp, c.borderL2, RoundedCornerShape(16.dp))
-                        .clickable { onPreview(item) },
+                        .combinedClickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = { onPreview(item) },
+                            onLongClick = { onPreview(item) },
+                        ),
                 ) {
                     if (item.isImage) {
                         orientedThumbFor(item.localPath, 320)?.let {
@@ -786,6 +795,8 @@ fun ImagePreviewDialog(
     onCrop: () -> Unit = {},
     onConfirmCrop: ((DraftAttachment) -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
+    onReplace: (() -> Unit)? = null,
+    onRemove: (() -> Unit)? = null,
 ) {
     val dlgCtx = LocalContext.current
     val dlgScope = rememberCoroutineScope()
@@ -794,6 +805,9 @@ fun ImagePreviewDialog(
     var cropState by remember(item.id, item.localPath) { mutableStateOf<NormalizedCrop?>(null) }
     var cropError by remember { mutableStateOf<String?>(null) }
     var cropSaving by remember { mutableStateOf(false) }
+    // 预览态双指缩放 / 平移 / 双击复位（ref MermaidBlock 手势模型）。
+    var zoom by remember(item.id, item.localPath) { mutableStateOf(1f) }
+    var pan by remember(item.id, item.localPath) { mutableStateOf(Offset.Zero) }
     LaunchedEffect(downloadStatus) {
         if (downloadStatus != null) {
             kotlinx.coroutines.delay(2500)
@@ -898,12 +912,32 @@ fun ImagePreviewDialog(
                         strokeWidth = 2.dp,
                     )
                 }
-                is PreviewDecode.Ready -> Image(
-                    decoded.bitmap, item.name,
+                is PreviewDecode.Ready -> Box(
                     Modifier.fillMaxSize().padding(top = 25.dp)
-                        .clickable(onClick = onClose),
-                    contentScale = ContentScale.Fit,
-                )
+                        .graphicsLayer {
+                            scaleX = zoom; scaleY = zoom
+                            translationX = pan.x; translationY = pan.y
+                        }
+                        .pointerInput(item.id) {
+                            detectTransformGestures { _, panDelta, zoomDelta, _ ->
+                                zoom = (zoom * zoomDelta).coerceIn(1f, 5f)
+                                if (zoom > 1.01f) pan += panDelta
+                            }
+                        }
+                        .pointerInput(item.id) {
+                            detectTapGestures(
+                                onTap = { if (zoom <= 1.01f) onClose() },
+                                onDoubleTap = {
+                                    if (zoom > 1.15f) { zoom = 1f; pan = Offset.Zero }
+                                    else zoom = 2.4f
+                                },
+                            )
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(decoded.bitmap, item.name, Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit)
+                }
                 PreviewDecode.Error -> Column(
                     Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -956,6 +990,36 @@ fun ImagePreviewDialog(
                         Spacer(Modifier.width(8.dp))
                         Text(Strings.get("androidCropImage"),
                             color = Color(0xFFF7F9FC), fontSize = 15.sp)
+                    }
+                }
+                if (onReplace != null) {
+                    Row(
+                        Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF20242B))
+                            .clickable { onReplace?.invoke() }
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_image_outline), null,
+                            tint = Color(0xFFF7F9FC), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(Strings.get("androidReplaceImage"),
+                            color = Color(0xFFF7F9FC), fontSize = 15.sp)
+                    }
+                }
+                if (onRemove != null) {
+                    Row(
+                        Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF20242B))
+                            .clickable { onRemove?.invoke() }
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_trash), null,
+                            tint = Color(0xFFFF7A7A), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(Strings.get("remove"),
+                            color = Color(0xFFFF7A7A), fontSize = 15.sp)
                     }
                 }
                 if (onDownload != null) {

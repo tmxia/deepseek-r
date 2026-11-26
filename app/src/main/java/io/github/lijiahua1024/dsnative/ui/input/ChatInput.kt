@@ -109,6 +109,8 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     val canSend = (text.isNotBlank() || atts.isNotEmpty()) && !isStreaming
     var showAttachments by remember { mutableStateOf(false) }
     var previewAtt by remember { mutableStateOf<DraftAttachment?>(null) }
+    // 预览器「替换」时记录待被替换的草稿，选图返回后走 replaceDraftAttachment。
+    var replaceTarget by remember { mutableStateOf<DraftAttachment?>(null) }
     // ref android-back: 附件面板打开时返回先收面板，不退出页面。
     androidx.activity.compose.BackHandler(enabled = showAttachments) {
         showAttachments = false
@@ -158,8 +160,21 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     val pickImages = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
-        if (uris.isNotEmpty()) addFiles(uris, true)
-        else chatStore.requestFocusComposer()
+        if (uris.isEmpty()) {
+            chatStore.requestFocusComposer()
+            return@rememberLauncherForActivityResult
+        }
+        val target = replaceTarget
+        replaceTarget = null
+        if (target != null) {
+            inputScope.launch {
+                uris.firstOrNull()?.let { importToDraft(context, it) }?.let {
+                    chatStore.replaceDraftAttachment(activeId, target.id, it)
+                }
+            }
+        } else {
+            addFiles(uris, true)
+        }
     }
     val openDocs = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()
@@ -660,6 +675,22 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
                 chatStore.replaceDraftAttachment(activeId, att.id, cropped)
                 previewAtt = null
                 chatStore.requestFocusComposer()
+            },
+            onDownload = {},
+            onReplace = {
+                replaceTarget = att
+                previewAtt = null
+                try {
+                    pickImages.launch(
+                        androidx.activity.result.PickVisualMediaRequest(
+                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                } catch (_: android.content.ActivityNotFoundException) {
+                    io.github.lijiahua1024.dsnative.ui.session.DsToast.show(Strings.get("uploadFileStatusFailed"))
+                }
+            },
+            onRemove = {
+                chatStore.removeDraftAttachment(activeId, att.id)
+                previewAtt = null
             },
         )
     }

@@ -378,6 +378,8 @@ object Strings {
             "uploadFileStatusFailed" -> pick("上传失败", "Upload failed")
             "uploadRetry" -> pick("{message}，点击重试", "{message}. Click to retry")
             "androidSaveImage" -> pick("保存到相册", "Save to photos")
+            "androidReplaceImage" -> pick("替换", "Replace")
+            "remove" -> pick("移除", "Remove")
             "androidPreviewDraftImage" -> pick("预览图片 {name}", "Preview image {name}")
             "androidCropImage" -> pick("裁剪", "Crop")
             "androidCropRotate" -> pick("旋转", "Rotate")

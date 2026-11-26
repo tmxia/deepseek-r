@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -68,6 +69,9 @@ import io.github.lijiahua1024.dsnative.theme.softShadow
 import io.github.lijiahua1024.dsnative.ui.input.DraftAttachmentsRow
 import io.github.lijiahua1024.dsnative.ui.input.ImagePreviewDialog
 import io.github.lijiahua1024.dsnative.ui.input.TogglePill
+import io.github.lijiahua1024.dsnative.ui.input.importToDraft
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 internal fun canSubmitEditedMessage(
@@ -140,6 +144,23 @@ fun MessageEditOverlay(
     // 未改动项提交时沿用原 FileAttachment，不重复上传。
     var draftFiles by remember(msg.id) { mutableStateOf(msg.files.map { it.toDraft() }) }
     var previewDraft by remember { mutableStateOf<DraftAttachment?>(null) }
+    val context = LocalContext.current
+    var replaceTarget by remember(msg.id) { mutableStateOf<DraftAttachment?>(null) }
+    val pickImage = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        val target = replaceTarget
+        replaceTarget = null
+        val uri = uris.firstOrNull() ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val att = withContext(Dispatchers.IO) { importToDraft(context, uri) }
+            if (att != null) {
+                draftFiles = if (target != null)
+                    draftFiles.map { if (it.id == target.id) att else it }
+                else draftFiles + att
+            }
+        }
+    }
     LaunchedEffect(msg.id) {
         try { focusRequester.requestFocus() } catch (_: IllegalStateException) {}
         keyboardController?.show()
@@ -285,8 +306,24 @@ fun MessageEditOverlay(
             ImagePreviewDialog(
                 item = item,
                 onClose = { previewDraft = null },
-                onConfirmCrop = null,
+                onConfirmCrop = { cropped ->
+                    draftFiles = draftFiles.map { if (it.id == item.id) cropped else it }
+                    previewDraft = null
+                },
                 onDownload = {},
+                onReplace = {
+                    replaceTarget = item
+                    previewDraft = null
+                    try {
+                        pickImage.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    } catch (_: android.content.ActivityNotFoundException) {}
+                },
+                onRemove = {
+                    draftFiles = draftFiles.filterNot { it.id == item.id }
+                    previewDraft = null
+                },
             )
         }
     }
