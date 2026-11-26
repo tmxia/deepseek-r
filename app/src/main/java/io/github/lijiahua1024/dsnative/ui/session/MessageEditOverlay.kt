@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,10 +70,15 @@ import io.github.lijiahua1024.dsnative.theme.softShadow
 import io.github.lijiahua1024.dsnative.ui.input.DraftAttachmentsRow
 import io.github.lijiahua1024.dsnative.ui.input.ImagePreviewDialog
 import io.github.lijiahua1024.dsnative.ui.input.TogglePill
+import io.github.lijiahua1024.dsnative.ui.input.AttachmentsPanel
+import io.github.lijiahua1024.dsnative.ui.input.RecentPhoto
+import io.github.lijiahua1024.dsnative.ui.input.attachDir
 import io.github.lijiahua1024.dsnative.ui.input.importToDraft
+import io.github.lijiahua1024.dsnative.ui.input.queryRecentPhotos
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 
 internal fun canSubmitEditedMessage(
     draft: String,
@@ -146,18 +152,74 @@ fun MessageEditOverlay(
     var previewDraft by remember { mutableStateOf<DraftAttachment?>(null) }
     val context = LocalContext.current
     var replaceTarget by remember(msg.id) { mutableStateOf<DraftAttachment?>(null) }
+    var showAttachments by remember { mutableStateOf(false) }
+    var cameraFile by remember { mutableStateOf<File?>(null) }
+    var photos by remember { mutableStateOf<List<RecentPhoto>>(emptyList()) }
+    LaunchedEffect(showAttachments) {
+        photos = if (showAttachments) queryRecentPhotos(context) else emptyList()
+    }
+    // 附件面板打开时返回先收面板，不直接退出编辑浮层。
+    androidx.activity.compose.BackHandler(enabled = showAttachments) { showAttachments = false }
     val pickImage = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         val target = replaceTarget
         replaceTarget = null
-        val uri = uris.firstOrNull() ?: return@rememberLauncherForActivityResult
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
-            val att = withContext(Dispatchers.IO) { importToDraft(context, uri) }
-            if (att != null) {
-                draftFiles = if (target != null)
-                    draftFiles.map { if (it.id == target.id) att else it }
-                else draftFiles + att
+            if (target != null) {
+                val att = withContext(Dispatchers.IO) { importToDraft(context, uris.first()) }
+                if (att != null) {
+                    draftFiles = draftFiles.map { if (it.id == target.id) att else it }
+                }
+            } else {
+                val items = uris.mapNotNull { withContext(Dispatchers.IO) { importToDraft(context, it) } }
+                draftFiles = draftFiles + items
+            }
+        }
+    }
+    val openDocs = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val items = uris.mapNotNull { withContext(Dispatchers.IO) { importToDraft(context, it) } }
+            draftFiles = draftFiles + items
+        }
+    }
+    val openWeChatDocs = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val data = result.data
+        val uris = buildList {
+            data?.clipData?.let { clip ->
+                for (i in 0 until clip.itemCount) clip.getItemAt(i)?.uri?.let(::add)
+            }
+            if (isEmpty()) data?.data?.let(::add)
+        }
+        if (uris.isNotEmpty()) scope.launch {
+            val items = uris.mapNotNull { withContext(Dispatchers.IO) { importToDraft(context, it) } }
+            draftFiles = draftFiles + items
+        }
+    }
+    val takePicture = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val file = cameraFile
+        cameraFile = null
+        if (file != null) scope.launch(Dispatchers.IO) {
+            if (ok && file.exists() && file.length() > 0L) {
+                val att = DraftAttachment(
+                    id = UUID.randomUUID().toString(),
+                    name = file.name,
+                    mimeType = "image/jpeg",
+                    isImage = true,
+                    localPath = file.absolutePath,
+                )
+                withContext(Dispatchers.Main) { draftFiles = draftFiles + att }
+            } else {
+                file.delete()
             }
         }
     }
@@ -236,6 +298,77 @@ fun MessageEditOverlay(
                 onPreview = { item -> previewDraft = item },
                 onSuggestion = {},
             )
+            AttachmentsPanel(
+                open = showAttachments,
+                photos = photos,
+                selectedPhotoIds = draftFiles.mapNotNull { it.recentPhotoId }.toSet(),
+                onPhoto = { photo ->
+                    val existing = draftFiles.firstOrNull { it.recentPhotoId == photo.id }
+                    if (existing != null) {
+                        draftFiles = draftFiles.filterNot { it.id == existing.id }
+                    } else scope.launch {
+                        val att = withContext(Dispatchers.IO) { importToDraft(context, photo.uri, photo.id) }
+                        if (att != null) draftFiles = draftFiles + att
+                    }
+                },
+                onCamera = {
+                    showAttachments = false
+                    val dir = attachDir(context)
+                    val f = File(dir, "camera-${System.currentTimeMillis()}.jpg")
+                    val u = androidx.core.content.FileProvider.getUriForFile(
+                        context, "${context.packageName}.fileprovider", f)
+                    cameraFile = f
+                    try {
+                        takePicture.launch(u)
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        cameraFile = null
+                        f.delete()
+                        DsToast.show(Strings.get("androidCameraUnavailable"))
+                    }
+                },
+                onGallery = {
+                    showAttachments = false
+                    try {
+                        pickImage.launch(
+                            androidx.activity.result.PickVisualMediaRequest(
+                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        DsToast.show(Strings.get("uploadFileStatusFailed"))
+                    }
+                },
+                onFiles = {
+                    showAttachments = false
+                    try {
+                        openDocs.launch(arrayOf("*/*"))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        DsToast.show(Strings.get("uploadFileStatusFailed"))
+                    }
+                },
+                onWeChatFiles = {
+                    showAttachments = false
+                    val installed = context.packageManager.getLaunchIntentForPackage("com.tencent.mm") != null
+                    if (!installed) {
+                        DsToast.show(Strings.get("androidWeChatNotInstalled"))
+                    } else {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                            putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                            type = "*/*"
+                            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                putExtra(
+                                    android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+                                    android.net.Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload%2FWeiXin"),
+                                )
+                            }
+                        }
+                        try {
+                            openWeChatDocs.launch(intent)
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            DsToast.show(Strings.get("androidWeChatOpenFailed"))
+                        }
+                    }
+                },
+            )
             Box(
                 Modifier.fillMaxWidth()
                     .heightIn(min = 76.dp, max = 340.dp)
@@ -264,6 +397,23 @@ fun MessageEditOverlay(
                 Modifier.fillMaxWidth().padding(start = 15.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val attSrc = remember { MutableInteractionSource() }
+                val attPressed by attSrc.collectIsPressedAsState()
+                Box(
+                    Modifier.size(36.dp)
+                        .clickable(attSrc, null) { showAttachments = !showAttachments },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource(if (showAttachments) R.drawable.ic_close_circle else R.drawable.ic_add_circle),
+                        Strings.get(if (showAttachments) "close" else "uploadFile"),
+                        tint = c.labelPrimary,
+                        modifier = Modifier.size(24.dp)
+                            .clip(CircleShape)
+                            .background(DsTheme.pressTint(attPressed, c.interactiveBgHover)),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
                 Row(
                     Modifier.weight(1f).horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
