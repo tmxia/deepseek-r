@@ -785,7 +785,7 @@ fun UserBubble(
                     ) {
                         Text(
                             msg.content,
-                            fontSize = 15.sp, lineHeight = 24.5.sp, color = c.labelPrimary,
+                            fontSize = 15.sp, lineHeight = 24.5.sp, fontWeight = FontWeight.Medium, color = c.labelPrimary,
                             maxLines = if (needsFold && collapsed) 4 else Int.MAX_VALUE,
                             overflow = TextOverflow.Clip,
                         )

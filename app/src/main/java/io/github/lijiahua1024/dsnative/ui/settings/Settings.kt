@@ -276,9 +276,9 @@ fun AndroidSettings(
                     key(layerPage) {
                         Text(
                             settingsPageTitle(layerPage),
-                            fontSize = 17.sp,
+                            fontSize = 16.sp,
                             lineHeight = 24.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Medium,
                             color = c.labelPrimary,
                             modifier = Modifier.align(Alignment.Center).graphicsLayer {
                                 alpha = subCtrl.layerAlpha(layerPage)
@@ -619,7 +619,7 @@ private fun InfoGlyph(glyph: String, tint: Color) {
 private fun Modifier.androidBorder(w: androidx.compose.ui.unit.Dp, color: Color) =
     this.then(Modifier.border(w, color, RoundedCornerShape(50)))
 
-// ref .group h2: muted 14/18 w400, margin 0 16px 8px; groups gap 28.2px
+// ref .group h2: muted 13/18 w400, margin 0 16px 8px; groups gap 28.2px
 @Composable
 private fun SettingsGroup(label: String?, card: Color, muted: Color, topGap: androidx.compose.ui.unit.Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit) {
@@ -627,7 +627,7 @@ private fun SettingsGroup(label: String?, card: Color, muted: Color, topGap: and
         if (label != null) {
             Box(Modifier.height(22.dp).padding(start = 16.dp, end = 16.dp),
                 contentAlignment = Alignment.CenterStart) {
-                Text(label, fontSize = 14.sp, color = muted,
+                Text(label, fontSize = 13.sp, color = muted,
                     style = androidx.compose.ui.text.TextStyle(
                         platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)))
             }
