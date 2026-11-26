@@ -1259,10 +1259,13 @@ private fun AdvancedSelector(
                 popupContentSize: androidx.compose.ui.unit.IntSize,
             ): androidx.compose.ui.unit.IntOffset {
                 val gap = with(density) { 8.dp.roundToPx() }
-                val right = minOf(anchor.right, windowSize.width)
+                val right = minOf(anchorBounds.right, windowSize.width)
                 val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
                 val x = (right - popupContentSize.width).coerceIn(0, maxX)
-                val y = anchor.bottom + gap
+                // 下方空间不足且上方更宽裕时，翻转到 trigger 上方，避免浮层被底部裁切。
+                val below = anchorBounds.bottom + gap
+                val above = anchorBounds.top - gap - popupContentSize.height
+                val y = if (windowSize.height - below < popupContentSize.height && above >= 0) above else below
                 return androidx.compose.ui.unit.IntOffset(x, y)
             }
         }
@@ -1288,11 +1291,13 @@ private fun AdvancedSelector(
     }
 
     if (expanded) {
+        // 浮层不抢输入焦点，避免可滚动父容器因焦点补偿滚动而位移；返回键由 BackHandler 兜底关闭。
+        androidx.activity.compose.BackHandler { expanded = false }
         androidx.compose.ui.window.Popup(
             popupPositionProvider = positionProvider,
             onDismissRequest = { expanded = false },
             properties = androidx.compose.ui.window.PopupProperties(
-                focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true),
+                focusable = false, dismissOnBackPress = false, dismissOnClickOutside = true),
         ) {
             Column(
                 Modifier.widthIn(min = 124.dp, max = 280.dp)
