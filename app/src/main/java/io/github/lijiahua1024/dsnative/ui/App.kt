@@ -30,7 +30,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -60,11 +59,6 @@ import io.github.lijiahua1024.dsnative.ui.settings.ApiKeyScreen
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
-
-private val DrawerCornerShapes = Array(33) {
-    androidx.compose.foundation.shape.RoundedCornerShape(it.dp)
-}
 
 // From useAndroidDrawerGesture.ts / Sider.module.css of the WebView reference:
 // drawer edge = min(width - 68.4px, 380px); gain 1.031; touchSlop 8px;
@@ -452,18 +446,15 @@ fun DrawerFrame(
                     if (p > 0f && p < 1f) drawRect(Color.Black, alpha = 0.21f * (1f - p))
                 }
             )
-            // Main content layer (full-height card; inner screens apply statusBarsPadding() so scaled top reaches ~55px under status bar).
+            // Main content layer: 与 Web 一致，抽屉开合只做纯水平平推，去掉 scale 收缩，
+            // 避免卡片上下边缘随缩放反复光栅化产生顶底横线闪。
             Box(
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer {
                         val p = progress
                         val mainOffsetX = (edgePx * (1f - searchFrac) + widthPx * searchFrac) * p
-                        val s = 1f - 0.051f * p
                         translationX = mainOffsetX
-                        scaleX = s
-                        scaleY = s
-                        transformOrigin = TransformOrigin(0f, 0.5f)
                     }
             ) {
                 if (!dark && drawerVisible) {
@@ -489,10 +480,13 @@ fun DrawerFrame(
                     Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            val p = progress
-                            val rInt = if (p > 0f) (((min(1f, p * 6f) * 4f).roundToInt() * 8)).coerceIn(0, 32) else 0
-                            shape = DrawerCornerShapes[rInt]
-                            clip = rInt > 0
+                            // ref .main：圆角为开合两端离散值（关闭 0 / 打开 36dp），不逐帧插值，
+                            // 避免对整块消息容器做圆角裁剪重绘。
+                            val open = progress > 0.5f
+                            shape = if (open)
+                                androidx.compose.foundation.shape.RoundedCornerShape(36.dp)
+                            else RectangleShape
+                            clip = open
                         }
                         .background(DsTheme.colors.bgBase)
                 ) {

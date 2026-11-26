@@ -195,7 +195,7 @@ fun Sider(
                 )
                 Text(
                     Strings.get("newChat"),
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = c.labelPrimary,
                 )
@@ -206,7 +206,7 @@ fun Sider(
             // .selectionHeader h48: label left + close IconButton right
             Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (selected.isEmpty()) Strings.get("androidSelectChats") else Strings.get("androidSelectedChats").replace("{count}", selected.size.toString()),
-                    fontSize = 16.sp, color = c.labelPrimary, modifier = Modifier.weight(1f))
+                    fontSize = 20.sp, color = c.labelPrimary, modifier = Modifier.weight(1f))
                 // .selectionHeader button: circle bg-base + soft shadow, tone=primary (dark)
                 Box(Modifier.size(34.dp).shadow(2.dp, androidx.compose.foundation.shape.CircleShape)
                         .clip(androidx.compose.foundation.shape.CircleShape).background(c.bgBase)
@@ -324,7 +324,7 @@ fun Sider(
                         Modifier.fillMaxWidth().padding(top = (if (gi == 0) 2 else 12).dp, start = 6.dp, end = 6.dp).height(26.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(label, fontSize = 14.sp, color = c.labelTertiary, fontWeight = FontWeight.Normal,
+                        Text(label, fontSize = 13.sp, color = c.labelTertiary, fontWeight = FontWeight.Normal,
                             style = androidx.compose.ui.text.TextStyle(
                                 platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)),
                             modifier = Modifier.weight(1f))
@@ -577,12 +577,11 @@ private fun DsModalButton(text: String, variant: DsBtn, onClick: () -> Unit) {
     val fg = if (variant == DsBtn.Outlined) c.labelPrimary
         else androidx.compose.ui.graphics.Color(0xFFFFFFFF)
     Box(Modifier.defaultMinSize(minWidth = 72.dp, minHeight = 40.dp)
-        .clip(RoundedCornerShape(4096.dp))
+        .clip(RoundedCornerShape(16.dp))
         .background(bg)
         .then(if (variant == DsBtn.Outlined)
-            Modifier.border(1.dp, c.borderL2, RoundedCornerShape(4096.dp)) else Modifier)
-        .clickable(onClick = onClick)
-        .padding(horizontal = 14.dp, vertical = 7.dp),
+            Modifier.border(1.dp, c.borderL2, RoundedCornerShape(16.dp)) else Modifier)
+        .padding(horizontal = 14.dp, vertical = 7.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center) {
         Text(text, fontSize = 14.sp, lineHeight = 22.sp,
             fontWeight = if (variant == DsBtn.Outlined) FontWeight.Normal else FontWeight.Medium,
@@ -703,8 +702,7 @@ private fun SearchSessionRow(
         Modifier
             .fillMaxWidth()
             .clip(SiderRowShape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 12.dp),
+            .padding(horizontal = 6.dp, vertical = 12.dp).clickable(onClick = onClick),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(
@@ -728,7 +726,7 @@ private fun SearchSessionRow(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     dateLabel,
-                    fontSize = 12.5.sp,
+                    fontSize = 13.sp,
                     color = c.labelTertiary,
                 )
             }
@@ -736,8 +734,8 @@ private fun SearchSessionRow(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     highlightedSnippet,
-                    fontSize = 13.5.sp,
-                    lineHeight = 19.sp,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
                     color = c.labelSecondary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -807,7 +805,7 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
             )
             Spacer(Modifier.width(10.dp))
         }
-        Text(s.title.ifEmpty { Strings.get("untitledChat") }, fontSize = 16.sp,
+        Text(s.title.ifEmpty { Strings.get("untitledChat") }, fontSize = 15.sp,
             color = when {
                 pressPhase != SessionPressPhase.Rest -> if (c.dark) c.brandText else Color(0xFF3269EF)
                 active && !selectionMode -> c.brandText
@@ -899,6 +897,6 @@ private fun SiderMenuOption(icon: Int, label: String, color: androidx.compose.ui
     ) {
         Icon(painterResource(icon), null, tint = color, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
-        Text(label, fontSize = 14.sp, lineHeight = 24.sp, color = color)
+        Text(label, fontSize = 15.sp, lineHeight = 24.sp, color = color)
     }
 }

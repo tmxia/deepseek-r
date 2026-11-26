@@ -734,28 +734,61 @@ fun UserBubble(
             }
         }
         if (msg.content.isNotEmpty()) {
+            // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
+            val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
+            var collapsed by remember(msg.id) { mutableStateOf(true) }
+            val bubbleShape = RoundedCornerShape(22.dp, 22.dp, 5.dp, 22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
-                Box(Modifier.align(Alignment.TopEnd)
-                    .onPlaced { coordsRef.coords = it }
-                    .clip(RoundedCornerShape(22.dp, 22.dp, 5.dp, 22.dp))
-                    .background(c.bubble)
-                    .combinedClickable(
-                        // ref .bubble 无 :active 变色：长按/点按都不显示 ripple，且仅通过长按菜单进入官方修改页
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        onClick = {},
-                        onLongClick = {
-                            val coords = coordsRef.coords
-                            val rect = if (coords != null && coords.isAttached) {
-                                val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
-                                androidx.compose.ui.geometry.Rect(
-                                    p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
-                                )
-                            } else androidx.compose.ui.geometry.Rect.Zero
-                            onMenu(msg, rect)
-                        })
-                    .padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(msg.content, fontSize = 16.sp, lineHeight = 24.sp, color = c.labelPrimary)
+                Column(
+                    Modifier.align(Alignment.TopEnd)
+                        .clip(bubbleShape)
+                        .background(c.bubble),
+                ) {
+                    Box(
+                        Modifier
+                            .onPlaced { coordsRef.coords = it }
+                            .combinedClickable(
+                                // ref .bubble 无 :active 变色：长按/点按都不显示 ripple，且仅通过长按菜单进入官方修改页
+                                indication = null,
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                onClick = {},
+                                onLongClick = {
+                                    val coords = coordsRef.coords
+                                    val rect = if (coords != null && coords.isAttached) {
+                                        val p = coords.localToRoot(androidx.compose.ui.geometry.Offset.Zero)
+                                        androidx.compose.ui.geometry.Rect(
+                                            p.x, p.y, p.x + coords.size.width, p.y + coords.size.height,
+                                        )
+                                    } else androidx.compose.ui.geometry.Rect.Zero
+                                    onMenu(msg, rect)
+                                })
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            msg.content,
+                            fontSize = 15.sp, lineHeight = 24.5.sp, color = c.labelPrimary,
+                            maxLines = if (needsFold && collapsed) 4 else Int.MAX_VALUE,
+                            overflow = TextOverflow.Clip,
+                        )
+                    }
+                    // ref .foldToggle：整行可点、右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary
+                    if (needsFold) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { collapsed = !collapsed },
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
+                                fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -764,6 +797,24 @@ fun UserBubble(
         }
         Spacer(Modifier.height(21.6.dp))
     }
+}
+
+/** ref estimateLineCount：气泡可用宽度 280px、字号 15；全角/中日韩按 1em，拉丁/数字/符号按 0.55em 估行。 */
+private fun estimateUserBubbleLines(text: String, fontSize: Int = 15): Int {
+    val charsPerLine = 280.0 / fontSize
+    var lines = 1
+    var current = 0.0
+    fun isWide(ch: Char): Boolean {
+        val cp = ch.code
+        return cp in 0x2E80..0x9FFF || cp in 0xF900..0xFDEF ||
+            cp in 0x3000..0x303F || cp in 0xFF00..0xFFEF
+    }
+    for (ch in text) {
+        if (ch == '\n') { lines += 1; current = 0.0; continue }
+        val width = if (isWide(ch)) 1.0 else 0.55
+        if (current + width > charsPerLine) { lines += 1; current = width } else current += width
+    }
+    return lines
 }
 
 /** ref getExtension：大写扩展名。 */
