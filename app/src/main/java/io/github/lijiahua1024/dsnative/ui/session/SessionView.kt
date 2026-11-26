@@ -1,6 +1,7 @@
 package io.github.lijiahua1024.dsnative.ui.session
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -970,11 +971,28 @@ private fun MessageFileView(
 
 @Composable
 private fun MenuOption(label: String, icon: Int, tint: Color, onClick: () -> Unit) {
-    // ref .option: padding 8/10 + font 14/24 —— CSS line-box 恒为 24px；
-    // Compose 单行 Text 高度只有 ~21sp，必须显式 40dp 行高，否则第二项上移 ~9px
-    Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
-        .height(40.dp).padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val bgColor = if (isPressed) {
+        if (DsTheme.colors.dark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f)
+    } else {
+        Color.Transparent
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth() // 🌟 撑满整行
+            .height(40.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor) // 极淡背景色
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null, // 关水波纹
+                onClick = onClick
+            )
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
         Text(label, fontSize = 14.sp, lineHeight = 24.sp, color = tint)
