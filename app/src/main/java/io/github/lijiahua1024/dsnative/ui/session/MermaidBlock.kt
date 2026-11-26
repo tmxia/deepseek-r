@@ -127,7 +127,7 @@ fun MermaidCodeBlock(
     var tab by remember { mutableIntStateOf(0) } // 0 = 图表, 1 = 代码
     var showFullscreen by remember { mutableStateOf(false) }
 
-    val parsed = remember(literal) { parseMermaidDiagram(literal) }
+    val parsed = remember(literal) { parseMermaidCached(literal) }
     val cardBg = if (c.dark) c.markdownCodeBlock else Color(0xFFFAFAFA)
     val segTrackBg = if (c.dark) c.bgLayer3 else Color(0xFFF0F0F0)
     val segActiveBg = if (c.dark) c.bgBase else Color.White
@@ -633,6 +633,27 @@ private sealed class SeqStep {
 }
 
 private data class PieSlice(val label: String, val value: Float)
+
+/** 解析产物跨实例缓存：回收重挂命中即免重复字符串解析；排版（含 TextLayoutResult）仍按实例 remember。 */
+private object MermaidParseFailed
+private val mermaidParseCache = object : android.util.LruCache<String, Any>(32) {
+    override fun sizeOf(key: String, value: Any): Int = key.length + 16
+}
+
+private fun parseMermaidCached(raw: String): MermaidDiagram? {
+    synchronized(mermaidParseCache) {
+        when (val hit = mermaidParseCache.get(raw)) {
+            null -> {}
+            MermaidParseFailed -> return null
+            else -> return hit as MermaidDiagram
+        }
+    }
+    val parsed = parseMermaidDiagram(raw)
+    synchronized(mermaidParseCache) {
+        mermaidParseCache.put(raw, parsed ?: MermaidParseFailed)
+    }
+    return parsed
+}
 
 private fun parseMermaidDiagram(raw: String): MermaidDiagram? {
     val lines = raw.lines()
