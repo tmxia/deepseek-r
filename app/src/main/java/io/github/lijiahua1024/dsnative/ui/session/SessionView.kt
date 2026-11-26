@@ -9,7 +9,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,12 +27,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.onSizeChanged
 import io.github.lijiahua1024.dsnative.theme.dsPainterResource as painterResource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
@@ -1313,6 +1318,19 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
     // ref .titleText.shimmer: 流式未出正文时标题文本扫光
     // 1.5s linear infinite（gradient bg-position 100%->0，宽 400%）
     val titleActive = msg.status == ReplyStatus.STREAMING && !hasResponse
+    // ref ReplyArea.tsx: previewActive = android && thinking && titleActive（流式未出正文阶段）
+    val previewActive = titleActive
+    // 流式预览内的手动展开（streamExpanded），独立于整体 override；出正文/停止后复位
+    var streamExpanded by remember(msg.id) { mutableStateOf(false) }
+    var previewOverflow by remember(msg.id) { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val previewHeightPx = with(LocalDensity.current) { 128.dp.toPx().toInt() }
+    LaunchedEffect(previewActive) { if (!previewActive) streamExpanded = false }
+    // 预览态跟随滚动到最新思考（对齐 Web follow rAF 滚到底）
+    LaunchedEffect(block.thinking, previewActive, streamExpanded) {
+        if (previewActive && !streamExpanded) scrollState.scrollTo(scrollState.maxValue)
+    }
+    val inPreview = previewActive && !streamExpanded
     val titleColor = c.thinkingText
     val titleStyle = if (titleActive) {
         val shimmer = androidx.compose.animation.core.rememberInfiniteTransition(label = "thinkShimmer")
@@ -1334,12 +1352,32 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
         TextStyle(color = titleColor, fontSize = 14.sp)
     }
     Column {
-        Row(Modifier.fillMaxWidth().height(32.dp).clickable { override = !expanded },
-            verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(32.dp).clickable {
+            when {
+                previewActive && previewOverflow -> streamExpanded = !streamExpanded
+                else -> override = !expanded
+            }
+        }, verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = titleStyle)
             Spacer(Modifier.width(4.dp))
-            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
-                modifier = Modifier.size(14.dp).rotate(chevDeg))
+            when {
+                previewActive && previewOverflow -> {
+                    if (streamExpanded) {
+                        Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                            modifier = Modifier.size(14.dp).rotate(90f))
+                    } else {
+                        // ref .previewIcon：双下箭头堆叠，提示可点开全部思考
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                                modifier = Modifier.size(10.dp).rotate(90f).offset(y = 2.dp))
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                                modifier = Modifier.size(10.dp).rotate(90f).offset(y = (-2).dp))
+                        }
+                    }
+                }
+                else -> Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                    modifier = Modifier.size(14.dp).rotate(chevDeg))
+            }
         }
         AnimatedVisibility(expanded,
             enter = androidx.compose.animation.expandVertically(
@@ -1353,7 +1391,31 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
             Row(Modifier.height(IntrinsicSize.Min)) {
                 Box(Modifier.padding(start = 7.5.dp, top = 4.dp).width(1.dp).fillMaxHeight().background(c.thinkingLine))
                 Column(Modifier.padding(start = 24.dp)) {
-                    Text(block.thinking, fontSize = 14.sp, color = c.thinkingText)
+                    Box(
+                        Modifier.then(
+                            if (inPreview) Modifier.heightIn(max = 128.dp) else Modifier
+                        )
+                    ) {
+                        Column(
+                            Modifier
+                                .then(if (inPreview) Modifier.verticalScroll(scrollState) else Modifier)
+                                .onSizeChanged { size -> previewOverflow = size.height > previewHeightPx }
+                        ) {
+                            Text(block.thinking, fontSize = 14.sp, color = c.thinkingText)
+                        }
+                        // ref .previewFade：预览超出时底部渐变淡出到会话背景
+                        if (inPreview && previewOverflow) {
+                            Box(
+                                Modifier.matchParentSize().background(
+                                    Brush.verticalGradient(
+                                        0f to Color.Transparent,
+                                        0.65f to Color.Transparent,
+                                        1f to c.bgBase
+                                    )
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
