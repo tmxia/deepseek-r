@@ -58,15 +58,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.R
 import io.github.lijiahua1024.dsnative.data.ChatStore
+import io.github.lijiahua1024.dsnative.data.DraftAttachment
+import io.github.lijiahua1024.dsnative.data.FileAttachment
 import io.github.lijiahua1024.dsnative.data.Message
 import io.github.lijiahua1024.dsnative.data.SettingsStore
 import io.github.lijiahua1024.dsnative.theme.DsTheme
 import io.github.lijiahua1024.dsnative.theme.Strings
 import io.github.lijiahua1024.dsnative.theme.softShadow
+import io.github.lijiahua1024.dsnative.ui.input.DraftAttachmentsRow
+import io.github.lijiahua1024.dsnative.ui.input.ImagePreviewDialog
 import io.github.lijiahua1024.dsnative.ui.input.TogglePill
+import java.io.File
 
-internal fun canSubmitEditedMessage(draft: String, isStreaming: Boolean): Boolean =
-    draft.trim().isNotEmpty() && !isStreaming
+internal fun canSubmitEditedMessage(
+    draft: String,
+    files: List<*>,
+    isStreaming: Boolean,
+): Boolean = !isStreaming && (draft.trim().isNotEmpty() || files.isNotEmpty())
+
+/** 原消息附件带入编辑草稿：沿用原件元数据与本地路径，未改动发送时直接复用。 */
+private fun FileAttachment.toDraft(): DraftAttachment = DraftAttachment(
+    id = id,
+    name = name,
+    mimeType = mimeType,
+    isImage = isImage,
+    localPath = localPath ?: "",
+)
 
 /**
  * Modal message editor matching official DeepSeek Android (`修改输入` / `放弃` composer sheet)
@@ -119,11 +136,15 @@ fun MessageEditOverlay(
     var value by remember(msg.id) {
         mutableStateOf(TextFieldValue(msg.content, selection = TextRange(msg.content.length)))
     }
+    // 原消息 files 映射为编辑草稿附件（existing 引用），图片在浮层内可见、可移除；
+    // 未改动项提交时沿用原 FileAttachment，不重复上传。
+    var draftFiles by remember(msg.id) { mutableStateOf(msg.files.map { it.toDraft() }) }
+    var previewDraft by remember { mutableStateOf<DraftAttachment?>(null) }
     LaunchedEffect(msg.id) {
         try { focusRequester.requestFocus() } catch (_: IllegalStateException) {}
         keyboardController?.show()
     }
-    val canSend = canSubmitEditedMessage(value.text, isStreaming)
+    val canSend = canSubmitEditedMessage(value.text, draftFiles, isStreaming)
     val sheetShape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     val eff = (enter.value * (1f - backFrac * 0.45f)).coerceIn(0f, 1f)
 
@@ -186,6 +207,14 @@ fun MessageEditOverlay(
                     )
                 }
             }
+            DraftAttachmentsRow(
+                items = draftFiles,
+                showSuggestions = false,
+                canSend = canSend,
+                onRemove = { item -> draftFiles = draftFiles.filterNot { it.id == item.id } },
+                onPreview = { item -> previewDraft = item },
+                onSuggestion = {},
+            )
             Box(
                 Modifier.fillMaxWidth()
                     .heightIn(min = 76.dp, max = 340.dp)
@@ -229,7 +258,16 @@ fun MessageEditOverlay(
                         .clip(CircleShape)
                         .background(if (canSend) c.buttonPrimaryFill else disabledSendBg)
                         .clickable(enabled = canSend) {
-                            chatStore.editMessage(sessionId, msg.id, value.text.trim())
+                            // 未改动的 existing 沿用原 FileAttachment（保留 serverId，不重复上传）；
+                            // 新增/替换项由草稿本地文件生成。
+                            val nextFiles = draftFiles.mapNotNull { d ->
+                                msg.files.firstOrNull { it.id == d.id } ?: run {
+                                    val len = try { File(d.localPath).length() }
+                                    catch (_: Exception) { 0L }
+                                    d.toFileAttachment(len)
+                                }
+                            }
+                            chatStore.editMessage(sessionId, msg.id, value.text.trim(), nextFiles)
                             closeAnimated()
                         },
                     contentAlignment = Alignment.Center,
@@ -242,6 +280,14 @@ fun MessageEditOverlay(
                     )
                 }
             }
+        }
+        previewDraft?.let { item ->
+            ImagePreviewDialog(
+                item = item,
+                onClose = { previewDraft = null },
+                onConfirmCrop = null,
+                onDownload = {},
+            )
         }
     }
 }

@@ -224,6 +224,22 @@ internal fun thumbFor(path: String, sizePx: Int): ImageBitmap? {
     return bmp
 }
 
+/** 缩略图：按 EXIF 方向校正后再缩放（剥离位图缓存，纯解码态）。 */
+@SuppressLint("ProduceStateDoesNotAssignValue")
+@Composable
+internal fun orientedThumbFor(path: String, sizePx: Int): ImageBitmap? {
+    val bmp by produceState<ImageBitmap?>(initialValue = null, path, sizePx) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                decodeOrientedBitmap(path, sizePx)?.asImageBitmap()
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+    return bmp
+}
+
 @SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 private fun photoThumb(resolver: ContentResolver, uri: Uri, sizePx: Int): ImageBitmap? {
@@ -492,7 +508,7 @@ fun DraftAttachmentsRow(
                         .clickable { onPreview(item) },
                 ) {
                     if (item.isImage) {
-                        thumbFor(item.localPath, 320)?.let {
+                        orientedThumbFor(item.localPath, 320)?.let {
                             Image(it, item.name, Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop)
                         }
@@ -685,6 +701,33 @@ private fun decodeOrientedBitmap(path: String, maxEdge: Int): Bitmap? {
     return oriented
 }
 
+private sealed interface PreviewDecode {
+    data object Loading : PreviewDecode
+    data class Ready(val bitmap: ImageBitmap) : PreviewDecode
+    data object Error : PreviewDecode
+}
+
+/**
+ * 全屏预览解码：按 EXIF 方向校正后再按长边缩放（ref Web `<img>` 加载完成前显示
+ * loading 占位，onError 才进入失败态）。三态分离避免旧实现「解码中先闪错误图标、
+ * 再异步出图」造成的跳闪。
+ */
+@SuppressLint("ProduceStateDoesNotAssignValue")
+@Composable
+private fun rememberPreviewDecode(path: String, maxEdge: Int): PreviewDecode {
+    val state by produceState<PreviewDecode>(PreviewDecode.Loading, path) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                decodeOrientedBitmap(path, maxEdge)?.asImageBitmap()
+                    ?.let { PreviewDecode.Ready(it) } ?: PreviewDecode.Error
+            } catch (_: Exception) {
+                PreviewDecode.Error
+            }
+        }
+    }
+    return state
+}
+
 private fun rotateBitmapCcw(src: Bitmap, turns: Int): Bitmap {
     val normTurns = ((turns % 4) + 4) % 4
     if (normTurns == 0) return src
@@ -843,18 +886,25 @@ fun ImagePreviewDialog(
                     },
                 )
             } else {
-            val bmp = thumbFor(item.localPath, 2048)
-            if (bmp != null) {
-                // the content rect extends under the nav bar, so the centered
-                // image sits ~34px above the ref's viewport center
-                Image(
-                    bmp, item.name,
+            val decoded = rememberPreviewDecode(item.localPath, 2048)
+            when (decoded) {
+                PreviewDecode.Loading -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                is PreviewDecode.Ready -> Image(
+                    decoded.bitmap, item.name,
                     Modifier.fillMaxSize().padding(top = 25.dp)
                         .clickable(onClick = onClose),
                     contentScale = ContentScale.Fit,
                 )
-            } else {
-                Column(
+                PreviewDecode.Error -> Column(
                     Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -887,7 +937,7 @@ fun ImagePreviewDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (bmp != null) {
+                if (decoded is PreviewDecode.Ready) {
                     Row(
                         Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFF20242B))

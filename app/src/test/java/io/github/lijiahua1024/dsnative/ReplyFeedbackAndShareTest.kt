@@ -44,9 +44,11 @@ class ReplyFeedbackAndShareTest {
 
     @Test
     fun editMessageSubmitRequiresNonBlankIdleDraft() {
-        assertFalse(canSubmitEditedMessage("", isStreaming = false))
-        assertFalse(canSubmitEditedMessage("   \n\t ", isStreaming = false))
-        assertFalse(canSubmitEditedMessage("edited", isStreaming = true))
-        assertTrue(canSubmitEditedMessage("edited question", isStreaming = false))
+        assertFalse(canSubmitEditedMessage("", emptyList<Any>(), isStreaming = false))
+        assertFalse(canSubmitEditedMessage("   \n\t ", emptyList<Any>(), isStreaming = false))
+        assertFalse(canSubmitEditedMessage("edited", emptyList<Any>(), isStreaming = true))
+        assertTrue(canSubmitEditedMessage("edited question", emptyList<Any>(), isStreaming = false))
+        // 纯附件消息：文本为空但仍有草稿附件时可提交（对应编辑保留附件链路）。
+        assertTrue(canSubmitEditedMessage("", listOf("attachment"), isStreaming = false))
     }
 }
