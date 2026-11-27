@@ -349,6 +349,10 @@ fun MarkdownBody(
             parseHolder.parsedAt = now
         }
     }
+    // 节流窗口内沿用上一版 AST；窗口之后新到的尾部先按纯文本平铺出来，
+    // 不必等下一次整段重解析才一次性冒出来，保证字符随每次重组渐进可见。
+    val heldText = parsedChunks.joinToString("") { it.source }
+    val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
     val content: @Composable () -> Unit = {
         Column(modifier) {
             parsedChunks.forEachIndexed { chunkIdx, chunk ->
@@ -363,6 +367,9 @@ fun MarkdownBody(
                 key(chunkIdx, chunk.source) {
                     RenderMarkdownChunk(chunk, c, uriHandler, tailStreaming, fresh)
                 }
+            }
+            if (rawTail.isNotEmpty()) {
+                ParagraphText(androidx.compose.ui.text.AnnotatedString(rawTail), c)
             }
         }
     }
@@ -445,7 +452,11 @@ private fun RenderBlock(
                 Modifier.fillMaxWidth()
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
                     .background(c.markdownCodeBlock, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .animateContentSize(animationSpec = androidx.compose.animation.core.tween(250)),
+                    // 流式增长时不挂尺寸动画：每帧增长都会重启 250ms 动画并触发重复测量；
+                    // 仅历史/静止内容保留折叠开合的尺寸过渡。
+                    .then(if (!streaming) {
+                        Modifier.animateContentSize(animationSpec = androidx.compose.animation.core.tween(250))
+                    } else Modifier),
             ) {
                 // ref CodeInfoRow .container: padding 6px; copy .button h28 r8 px10 gap3
                 Row(
@@ -512,7 +523,13 @@ private fun RenderBlock(
                     val highlightSource = if (needsFold && collapsed) {
                         trimmedCode.lines().take(5).joinToString("\n")
                     } else trimmedCode
-                    val highlightedCode = remember(highlightSource, c.dark, lang) { getHighlighted(highlightSource, c, lang) }
+                    // 流式增长期跳过逐帧高亮正则：代码每帧都变、缓存键持续失效，
+                    // 正则全量扫描会压在主线程上；出文结束后再补着色。
+                    val highlightedCode = if (streaming) {
+                        androidx.compose.ui.text.AnnotatedString(trimmedCode)
+                    } else {
+                        remember(highlightSource, c.dark, lang) { getHighlighted(highlightSource, c, lang) }
+                    }
                     Text(
                         highlightedCode,
                         fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp,
