@@ -790,14 +790,14 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
             // ref .item:active -> bg-skeleton
             .background(
                 when {
-                    pressPhase == SessionPressPhase.Light ->
-                        if (c.dark) c.sidebarNavItemActiveAccent.copy(alpha = 0.72f) else Color(0xFFEDF1FE)
-                    pressPhase == SessionPressPhase.Pressed ->
-                        if (c.dark) c.sidebarNavItemActiveAccent else Color(0xFFE0E8F1)
-                    pressed -> DsTheme.pressTint(pressed, c.bgSkeleton)
-                    active && !selectionMode -> c.sidebarNavItemActiveAccent
-                    else -> Color.Transparent
-                }
+                        active && !selectionMode -> c.sidebarNavItemActiveAccent
+                        pressPhase == SessionPressPhase.Light ->
+                            if (c.dark) c.sidebarNavItemActiveAccent.copy(alpha = 0.72f) else Color(0xFFEDF1FE)
+                        pressPhase == SessionPressPhase.Pressed ->
+                            if (c.dark) c.sidebarNavItemActiveAccent else Color(0xFFE0E8F1)
+                        pressed -> DsTheme.pressTint(pressed, c.bgSkeleton)
+                        else -> Color.Transparent
+                    }
             )
             .combinedClickable(pressSrc, null, onClick = onClick, onLongClick = onLongClick)
             .padding(start = 20.62.dp, end = 20.62.dp),
@@ -824,7 +824,11 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
                 else -> c.labelPrimary
             },
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        if (active && !selectionMode) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = active && !selectionMode,
+            enter = androidx.compose.animation.expandHorizontally() + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()
+        ) {
             val menuInteractionSource = remember {
                 androidx.compose.foundation.interaction.MutableInteractionSource()
             }
