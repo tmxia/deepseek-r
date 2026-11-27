@@ -183,6 +183,8 @@ fun AndroidSettings(
     val ttsVoice by settings.ttsVoice.collectAsState()
     var popup by remember { mutableStateOf<String?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
+    var showLogDialog by remember { mutableStateOf(false) }
+    var showCrashDialog by remember { mutableStateOf(false) }
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateDialog by remember { mutableStateOf<io.github.lijiahua1024.dsnative.data.UpdateCheckResult.UpdateAvailable?>(null) }
     val updateScope = rememberCoroutineScope()
@@ -196,7 +198,7 @@ fun AndroidSettings(
     var modalTargetBlurDp by remember { mutableFloatStateOf(0f) }
 
     androidx.activity.compose.PredictiveBackHandler(
-        enabled = popup == null && !confirmLogout && updateDialog == null,
+        enabled = popup == null && !confirmLogout && !showLogDialog && !showCrashDialog && updateDialog == null,
     ) { flow ->
         val pageNow = subCtrl.current
         try {
@@ -335,6 +337,8 @@ fun AndroidSettings(
                                         )
                                     },
                                     onLogout = { confirmLogout = true },
+                                    onViewLog = { showLogDialog = true },
+                                    onViewCrash = { showCrashDialog = true },
                                     onModalBlur = { frac ->
                                         modalTargetBlurDp = 0.40f
                                         modalBlurFraction = frac
@@ -484,6 +488,28 @@ fun AndroidSettings(
             },
         )
     }
+    // 日志/崩溃弹窗挂在固定遮罩层（与选择弹窗、确认弹窗同级），不进入滚动列，
+    // 避免 fillMaxSize 在可滚动列里塌缩成内容高度、两个卡片上下堆叠错位。
+    if (showLogDialog) {
+        val logText = remember(showLogDialog) { DebugLog.all().takeLast(400).joinToString("\n") }
+        DsLogDialog(
+            title = Strings.get("debugLogTitle"),
+            text = logText,
+            emptyHint = Strings.get("debugLogEmpty"),
+            onDismiss = { showLogDialog = false },
+        )
+    }
+    if (showCrashDialog) {
+        val crashText = remember(showCrashDialog) {
+            CrashLog.readAll().lines().takeLast(400).joinToString("\n")
+        }
+        DsLogDialog(
+            title = Strings.get("debugCrashView"),
+            text = crashText,
+            emptyHint = Strings.get("debugCrashEmpty"),
+            onDismiss = { showCrashDialog = false },
+        )
+    }
     updateDialog?.let { avail ->
         DsConfirmDialog(
             title = Strings.get("updateAvailableTitle", "version" to avail.version),
@@ -528,6 +554,8 @@ private fun SettingsLayerBody(
     onPopup: (String) -> Unit,
     onHelp: () -> Unit,
     onLogout: () -> Unit,
+    onViewLog: () -> Unit,
+    onViewCrash: () -> Unit,
     onModalBlur: (Float) -> Unit,
     onCheckUpdate: () -> Unit,
 ) {
@@ -539,6 +567,8 @@ private fun SettingsLayerBody(
             onPopup = onPopup,
             onHelp = onHelp,
             onLogout = onLogout,
+            onViewLog = onViewLog,
+            onViewCrash = onViewCrash,
             themePref = themePref,
             localePref = localePref,
             checkingUpdate = checkingUpdate,
@@ -561,6 +591,8 @@ private fun SettingsRootPage(
     onPage: (String) -> Unit,
     onPopup: (String) -> Unit,
     onHelp: () -> Unit, onLogout: () -> Unit,
+    onViewLog: () -> Unit,
+    onViewCrash: () -> Unit,
     themePref: io.github.lijiahua1024.dsnative.data.ThemePreference,
     localePref: io.github.lijiahua1024.dsnative.data.LocalePreference,
     checkingUpdate: Boolean = false,
@@ -569,8 +601,6 @@ private fun SettingsRootPage(
     val debugMode by settings.debugMode.collectAsState()
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var showLogDialog by remember { mutableStateOf(false) }
-    var showCrashDialog by remember { mutableStateOf(false) }
     // 清空日志后驱动「查看日志」计数立即重算，避免仍显示旧条数。
     var logNonce by remember { mutableStateOf(0) }
     val exportLogLauncher = rememberLauncherForActivityResult(
@@ -644,8 +674,8 @@ private fun SettingsRootPage(
         val logCount = run { logNonce; DebugLog.size() }
         SettingsGroup(Strings.get("debugLogTitle"), card, muted) {
             SettingsRow(c, muted, Strings.get("debugLogView"),
-                value = "$logCount", arrow = false) { showLogDialog = true }
-            SettingsRow(c, muted, Strings.get("debugCrashView"), arrow = false) { showCrashDialog = true }
+                value = "$logCount", arrow = false) { onViewLog() }
+            SettingsRow(c, muted, Strings.get("debugCrashView"), arrow = false) { onViewCrash() }
             SettingsRow(c, muted, Strings.get("debugLogExport"), arrow = false) {
                 exportLogLauncher.launch("dsnative-debug-${System.currentTimeMillis()}.log")
             }
@@ -661,26 +691,6 @@ private fun SettingsRootPage(
     }
     SettingsGroup(null, card, muted, topGap = 7.8.dp) {
         SettingsRow(c, muted, Strings.get("settingsLogout"), danger = true, arrow = false) { onLogout() }
-    }
-    if (showLogDialog) {
-        val logText = remember(showLogDialog) { DebugLog.all().takeLast(400).joinToString("\n") }
-        DsLogDialog(
-            title = Strings.get("debugLogTitle"),
-            text = logText,
-            emptyHint = Strings.get("debugLogEmpty"),
-            onDismiss = { showLogDialog = false },
-        )
-    }
-    if (showCrashDialog) {
-        val crashText = remember(showCrashDialog) {
-            CrashLog.readAll().lines().takeLast(400).joinToString("\n")
-        }
-        DsLogDialog(
-            title = Strings.get("debugCrashView"),
-            text = crashText,
-            emptyHint = Strings.get("debugCrashEmpty"),
-            onDismiss = { showCrashDialog = false },
-        )
     }
 }
 
@@ -1735,6 +1745,7 @@ private fun DsLogDialog(
     onDismiss: () -> Unit,
 ) {
     val c = DsTheme.colors
+    val ctx = LocalContext.current
     val ov = remember { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(Unit) { ov.animateTo(1f, androidx.compose.animation.core.tween(160)) }
     val cardBg = if (c.dark) Color(0xFF292929) else Color.White
@@ -1767,14 +1778,30 @@ private fun DsLogDialog(
                 )
             }
             Spacer(Modifier.height(16.dp))
-            Box(
-                Modifier.fillMaxWidth().height(44.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(cancelBg)
-                    .clickable(onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(Strings.get("close"), fontSize = 16.sp, color = c.labelPrimary)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier.weight(1f).height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(cancelBg)
+                        .clickable {
+                            val cb = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                            cb.setPrimaryClip(android.content.ClipData.newPlainText("log", text))
+                            DsToast.show(Strings.get("copied"))
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(Strings.get("copy"), fontSize = 16.sp, color = c.labelPrimary)
+                }
+                Box(
+                    Modifier.weight(1f).height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(cancelBg)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(Strings.get("close"), fontSize = 16.sp, color = c.labelPrimary)
+                }
             }
         }
     }
