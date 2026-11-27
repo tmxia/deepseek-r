@@ -65,8 +65,8 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/** 流式回复 UI 刷新间隔（ms）：聚合 chunk 后再重组，平滑可读优先于逐块抢占。 */
-private const val STREAM_FLUSH_INTERVAL_MS = 160L
+/** 流式回复 UI 刷新间隔（ms）：聚合 chunk 后再重组；解析已后台化，主线程刷新可更细密。 */
+private const val STREAM_FLUSH_INTERVAL_MS = 100L
 
 /** sessions 排序：updatedAt 新→旧 */
 private fun sortSessions(sessions: List<SessionSummary>) = sessions.sortedByDescending { it.updatedAt }

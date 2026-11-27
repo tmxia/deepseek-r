@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import io.github.lijiahua1024.dsnative.theme.Strings
 import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.theme.DsTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
@@ -148,9 +151,6 @@ private val CITE_BADGE_SHAPE = androidx.compose.foundation.shape.RoundedCornerSh
     topStart = 6.dp, topEnd = 6.dp, bottomEnd = 6.dp, bottomStart = 0.dp)
 private val URI_SCHEME_RE = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
 private val ORDERED_LIST_PREFIX_RE = Regex("^\\d+[.)]\\s.*")
-
-/** 流式期间 Markdown 解析节流窗口：窗口内沿用上一版 AST，避免每个 chunk 全量重解析。 */
-private const val STREAM_PARSE_THROTTLE_MS = 160L
 
 // ref .ds-markdown-cite: 14px 高角标（top -5px），圆角 6px 6px 6px 0，
 // 0.5px l1 边框，markdown-placeholder 底，9px/500 等宽三级色数字
@@ -332,25 +332,23 @@ fun MarkdownBody(
             }
         }
     }
-    // 流式期解析节流：窗口内复用上次的 chunk AST，不在每个 chunk 上全量重解析；
-    // 非流式或流式结束后下次组合即按最新文本重新解析。
-    val parseHolder = remember {
-        object {
-            var chunks: List<ParsedMarkdownChunk> = emptyList()
-            var parsedAt: Long = 0L
+    // 非流式（历史/静止消息）：挂载时同步解析一次。
+    // 流式：CommonMark 解析放到 Default 线程协程里完成，主线程只渲染上一版 AST；
+    // 新到的尾部先用纯文本平铺出来，避免解析与正则扫描压在帧上造成卡顿后整段冒出。
+    var asyncChunks by remember { mutableStateOf<List<ParsedMarkdownChunk>?>(null) }
+    LaunchedEffect(text) {
+        if (!streaming) return@LaunchedEffect
+        val chunks = withContext(Dispatchers.Default) {
+            splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
         }
+        asyncChunks = chunks
     }
-    val now = android.os.SystemClock.uptimeMillis()
-    val throttled = streaming && parseHolder.chunks.isNotEmpty() &&
-        now - parseHolder.parsedAt < STREAM_PARSE_THROTTLE_MS
-    val parsedChunks = if (throttled) parseHolder.chunks else {
-        splitMarkdownChunks(text).map(::getParsedMarkdownChunk).also {
-            parseHolder.chunks = it
-            parseHolder.parsedAt = now
-        }
+    val parsedChunks = when {
+        !streaming -> splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
+        asyncChunks != null -> asyncChunks!!
+        else -> emptyList()
     }
-    // 节流窗口内沿用上一版 AST；窗口之后新到的尾部先按纯文本平铺出来，
-    // 不必等下一次整段重解析才一次性冒出来，保证字符随每次重组渐进可见。
+    // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
     val content: @Composable () -> Unit = {
