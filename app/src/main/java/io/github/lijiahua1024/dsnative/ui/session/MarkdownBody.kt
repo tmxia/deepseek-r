@@ -342,7 +342,7 @@ fun MarkdownBody(
                 }
                 val tailStreaming = streaming && chunkIdx == parsedChunks.lastIndex
                 key(chunkIdx, chunk.source) {
-                    RenderMarkdownChunk(chunk, c, uriHandler, tailStreaming)
+                    RenderMarkdownChunk(chunk, c, uriHandler, tailStreaming, streaming)
                 }
             }
         }
@@ -360,6 +360,7 @@ private fun RenderMarkdownChunk(
     c: io.github.lijiahua1024.dsnative.theme.DsColors,
     uriHandler: androidx.compose.ui.platform.UriHandler,
     streaming: Boolean,
+    messageStreaming: Boolean,
 ) {
     val blocks = chunk.blocks
     for (idx in blocks.indices) {
@@ -367,7 +368,7 @@ private fun RenderMarkdownChunk(
         if (idx > 0) {
             Spacer(Modifier.height(maxOf(bottomMargin(blocks[idx - 1], false), topMargin(node)).dp))
         }
-        RenderBlock(node, c, uriHandler, streaming, chunk.tokens)
+        RenderBlock(node, c, uriHandler, streaming, chunk.tokens, messageStreaming)
     }
 }
 
@@ -378,6 +379,7 @@ private fun RenderBlock(
     uriHandler: androidx.compose.ui.platform.UriHandler,
     streaming: Boolean = false,
     mathTokens: Map<Int, ExtractedMathToken> = emptyMap(),
+    messageStreaming: Boolean = false,
 ) {
     when (node) {
         is Paragraph -> RenderParagraph(inlineText(node, c, uriHandler), c, streaming, mathTokens)
@@ -472,8 +474,9 @@ private fun RenderBlock(
                 // ref CodeBlock: FOLD_LINES=5，按逻辑行判定，不足阈值不渲染折叠按钮
                 val codeLineCount = remember(trimmedCode) { trimmedCode.trim().split('\n').size }
                 val needsFold = codeLineCount > 5
-                // 流式生成中的代码（新产生内容）保持展开；回复结束后再按历史默认折叠。
-                var collapsed by remember(trimmedCode, streaming) { mutableStateOf(!streaming) }
+                // 折叠默认态以消息级流式状态为准：回合内无论代码块落在哪个分块都保持展开；
+                // 回复结束后再按历史默认折叠。streaming（末块标志）只供数学/流程图实时渲染判断。
+                var collapsed by remember(trimmedCode, messageStreaming) { mutableStateOf(!messageStreaming) }
                 // ref CodeBlock <pre>：white-space pre-wrap + overflow-wrap anywhere，
                 // 长行在容器宽度内自动换行；不做横向滚动，避免折叠/展开间 intrinsic
                 // 宽度与滚动状态重算导致的布局跳闪。
@@ -531,7 +534,7 @@ private fun RenderBlock(
                 Box(Modifier.width(2.dp).fillMaxHeight().background(c.labelCaption))
                 Column(Modifier.padding(start = 14.dp)) {
                     var ch = node.firstChild
-                    while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens); ch = ch.next }
+                    while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens, messageStreaming); ch = ch.next }
                 }
             }
         }
@@ -547,7 +550,7 @@ private fun RenderBlock(
                             }
                             Column(Modifier.weight(1f)) {
                                 var ch = item.firstChild
-                                while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens); ch = ch.next }
+                                while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens, messageStreaming); ch = ch.next }
                             }
                         }
                     }
@@ -566,7 +569,7 @@ private fun RenderBlock(
                                 style = cssLeading, modifier = Modifier.widthIn(min = 16.dp).padding(end = 4.dp))
                             Column(Modifier.weight(1f)) {
                                 var ch = item.firstChild
-                                while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens); ch = ch.next }
+                                while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens, messageStreaming); ch = ch.next }
                             }
                         }
                         i++
@@ -585,7 +588,7 @@ private fun RenderBlock(
         }
         else -> {
             var ch = node.firstChild
-            while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens); ch = ch.next }
+            while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens, messageStreaming); ch = ch.next }
         }
     }
 }
