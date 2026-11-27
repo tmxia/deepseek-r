@@ -251,14 +251,21 @@ fun SessionView(
                 contentPadding = PaddingValues(bottom = 20.5.dp)) {
                 items(visible.size, key = { visible[it].id }, contentType = { if (visible[it] is Message.User) "user" else "assistant" }) { index ->
                     when (val msg = visible[index]) {
-                        is Message.User -> UserBubble(
-                            msg = msg,
-                            sessionId = curSessionId,
-                            siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
-                            uploadReply = visible.getOrNull(index + 1) as? Message.Assistant,
-                            chatStore = chatStore,
-                            onMenu = onUserMenu,
-                        )
+                        is Message.User -> {
+                            val reply = visible.getOrNull(index + 1) as? Message.Assistant
+                            val fresh = reply?.status == ReplyStatus.PENDING ||
+                                reply?.status == ReplyStatus.STREAMING ||
+                                (reply == null && streaming.contains(curSessionId))
+                            UserBubble(
+                                msg = msg,
+                                sessionId = curSessionId,
+                                siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
+                                uploadReply = reply,
+                                chatStore = chatStore,
+                                onMenu = onUserMenu,
+                                fresh = fresh,
+                            )
+                        }
                         is Message.Assistant -> AssistantView(
                             msg = msg,
                             sessionId = curSessionId,
@@ -719,6 +726,7 @@ fun UserBubble(
     uploadReply: Message.Assistant?,
     chatStore: ChatStore,
     onMenu: (Message.User, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
+    fresh: Boolean = false,
 ) {
     val c = DsTheme.colors
     val coordsRef = remember { CoordsRef() }
@@ -764,7 +772,8 @@ fun UserBubble(
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
             // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
             // 或折叠选择，不会被重置回默认折叠（修复展开后等待片刻自动收回、手动收起不生效）。
-            var collapsed by rememberSaveable(msg.id) { mutableStateOf(true) }
+            // 当前回合回复未结束（fresh，新产生的消息）保持展开；回复结束后再按历史默认折叠。
+            var collapsed by rememberSaveable(msg.id, fresh) { mutableStateOf(!fresh) }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {

@@ -472,7 +472,8 @@ private fun RenderBlock(
                 // ref CodeBlock: FOLD_LINES=5，按逻辑行判定，不足阈值不渲染折叠按钮
                 val codeLineCount = remember(trimmedCode) { trimmedCode.trim().split('\n').size }
                 val needsFold = codeLineCount > 5
-                var collapsed by remember(trimmedCode) { mutableStateOf(true) }
+                // 流式生成中的代码（新产生内容）保持展开；回复结束后再按历史默认折叠。
+                var collapsed by remember(trimmedCode, streaming) { mutableStateOf(!streaming) }
                 // ref CodeBlock <pre>：white-space pre-wrap + overflow-wrap anywhere，
                 // 长行在容器宽度内自动换行；不做横向滚动，避免折叠/展开间 intrinsic
                 // 宽度与滚动状态重算导致的布局跳闪。
