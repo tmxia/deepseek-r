@@ -509,22 +509,19 @@ private fun RenderBlock(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(
+                        Box(
                             Modifier
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                                .clickable { collapsed = !collapsed }
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .clickable { collapsed = !collapsed },
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                Strings.get(if (collapsed) "expandCode" else "collapseCode"),
-                                fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
-                            )
                             androidx.compose.material3.Icon(
-                                androidx.compose.ui.res.painterResource(io.github.lijiahua1024.dsnative.R.drawable.ic_chevron_right),
+                                androidx.compose.ui.res.painterResource(
+                                    io.github.lijiahua1024.dsnative.R.drawable.ic_chevron_right),
                                 null, tint = c.labelSecondary,
-                                modifier = Modifier.size(14.dp).rotate(if (collapsed) 90f else 270f),
+                                modifier = Modifier.size(16.dp).rotate(if (collapsed) 90f else 270f),
                             )
                         }
                     }

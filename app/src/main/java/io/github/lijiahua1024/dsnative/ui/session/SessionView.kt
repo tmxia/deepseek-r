@@ -799,23 +799,31 @@ fun UserBubble(
                             overflow = TextOverflow.Clip,
                         )
                     }
-                    // ref .foldToggle：整行可点、右对齐、高 26px、margin-top 4px、13px/20px、labelSecondary。
-                    // 按钮为气泡本体的兄弟节点，独立于长按手势容器。
+                    // ref .foldToggle：整行可点、右对齐；白色圆形纯图标按钮，方向随展开态翻转。
                     if (needsFold) {
                         Row(
                             Modifier.fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) { collapsed = !collapsed },
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                Strings.get(if (collapsed) "expandBlock" else "collapseBlock"),
-                                fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
-                            )
+                            Box(
+                                Modifier
+                                    .size(32.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(Color.White)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                    ) { collapsed = !collapsed },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_chevron_right), null,
+                                    tint = c.labelSecondary,
+                                    modifier = Modifier.size(16.dp).rotate(if (collapsed) 90f else 270f),
+                                )
+                            }
                         }
                     }
                 }
