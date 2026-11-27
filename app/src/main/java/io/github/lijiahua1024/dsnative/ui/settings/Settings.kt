@@ -1466,6 +1466,8 @@ private fun ChoicePopup(
     onDismiss: () -> Unit,
 ) {
     var next by remember { mutableStateOf(selected) }
+    // 与 SettingsRow 一致的按压底色：浅色 #EBEBEB / 深色 #303030。
+    val pressBg = if (c.dark) Color(0xFF303030) else Color(0xFFEBEBEB)
     val ov = remember { androidx.compose.animation.core.Animatable(0f) }
     val scope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
@@ -1528,23 +1530,36 @@ private fun ChoicePopup(
                 }) {
                 options.forEach { (id, label) ->
                     val checked = next == id
+                    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    val pressed by src.collectIsPressedAsState()
                     Row(Modifier.fillMaxWidth().height(60.dp)
-                        .clickable { next = id }.padding(horizontal = 22.dp),
+                        .background(when {
+                            checked -> c.interactiveBgHover
+                            pressed -> DsTheme.pressTint(pressed, pressBg)
+                            else -> Color.Transparent
+                        })
+                        .clickable(interactionSource = src, indication = null) { next = id }
+                        .padding(horizontal = 22.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         Box(Modifier.size(20.dp).clip(RoundedCornerShape(50))
-                            .border(2.dp, if (checked) c.labelPrimary else Color(0xFF49505C),
+                            .border(2.dp, if (checked) c.brandPrimary else muted,
                                 RoundedCornerShape(50)),
                             contentAlignment = Alignment.Center) {
                             if (checked) Box(Modifier.size(10.dp).clip(RoundedCornerShape(50))
-                                .background(c.labelPrimary))
+                                .background(c.brandPrimary))
                         }
                         Text(label, fontSize = 16.sp, color = c.labelPrimary)
                     }
                 }
             }
+            val confirmSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            val confirmPressed by confirmSrc.collectIsPressedAsState()
             Box(Modifier.fillMaxWidth().height(54.dp)
-                .clickable { dismissAnimated { onConfirm(next) } }, contentAlignment = Alignment.Center) {
+                .background(if (confirmPressed) DsTheme.pressTint(confirmPressed, pressBg)
+                    else Color.Transparent)
+                .clickable(interactionSource = confirmSrc, indication = null)
+                { dismissAnimated { onConfirm(next) } }, contentAlignment = Alignment.Center) {
                 Text(Strings.get("confirm"), fontSize = 16.sp, fontWeight = FontWeight.Medium, color = c.brandText)
             }
         }
@@ -1697,7 +1712,7 @@ private fun VoiceSheet(
                 Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     tones.forEach { (id, _) ->
                         Box(Modifier.size(22.dp).padding(7.dp).clip(RoundedCornerShape(50))
-                            .background(if (tone == id) c.brandText else Color(0xFFCCCCCC))
+                            .background(if (tone == id) c.brandText else muted)
                             .clickable {
                                 tone = id
                                 previewTone(id)
