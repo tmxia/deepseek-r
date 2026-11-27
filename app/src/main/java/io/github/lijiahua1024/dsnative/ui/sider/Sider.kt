@@ -824,26 +824,21 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
                 else -> c.labelPrimary
             },
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        androidx.compose.animation.AnimatedVisibility(
-            visible = active && !selectionMode,
-            enter = androidx.compose.animation.expandHorizontally() + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.shrinkHorizontally() + androidx.compose.animation.fadeOut()
+        val isBtnVisible = active && !selectionMode
+        Box(
+            Modifier
+                .width(44.8f.dp)
+                .height(44.8f.dp)
+                .graphicsLayer { alpha = if (isBtnVisible) 1f else 0f } // 用透明度控制显隐，彻底告别重排阴影
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    enabled = isBtnVisible,
+                    onClick = onMenuClick,
+                )
+                .semantics { },
+            contentAlignment = Alignment.Center,
         ) {
-            val menuInteractionSource = remember {
-                androidx.compose.foundation.interaction.MutableInteractionSource()
-            }
-            Box(
-                Modifier
-                    .width(44.8f.dp)
-                    .height(44.8f.dp)
-                    .clickable(
-                        interactionSource = menuInteractionSource,
-                        indication = null,
-                        onClick = onMenuClick,
-                    )
-                    .semantics { },
-                contentAlignment = Alignment.Center,
-            ) {
                 Box(
                     Modifier
                         .size(18.9f.dp)
