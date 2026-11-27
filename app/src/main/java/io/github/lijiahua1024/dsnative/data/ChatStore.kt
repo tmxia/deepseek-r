@@ -427,9 +427,11 @@ class ChatStore(
         mutex.withLock {
             val loaded = chatDir.listFiles { f -> f.extension == "json" && f.name != "index.json" }
                 ?.mapNotNull { file ->
+                    // 放宽到 Throwable：损坏或超大会话解码抛 OOM/Error 时跳过该记录，
+                    // 不让单个坏会话阻塞其余历史加载。
                     try {
                         json.decodeFromString<Session>(file.readText())
-                    } catch (e: Exception) {
+                    } catch (_: Throwable) {
                         null
                     }
                 }
@@ -463,8 +465,8 @@ class ChatStore(
             try {
                 val latest = _sessionCache.value[sessionId] ?: return@launch
                 writeSessionSync(latest)
-            } catch (_: Exception) {
-                // 保存失败：下次启动丢该会话的最新状态
+            } catch (_: Throwable) {
+                // 保存失败（含 OOM/Error）：保留内存态，下次启动/再次保存时重试
             }
         }
     }
