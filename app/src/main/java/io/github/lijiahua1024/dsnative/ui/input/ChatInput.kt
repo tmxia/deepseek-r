@@ -217,7 +217,8 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
             if (VoiceInput.enabled.value) VoiceInput.enabled.value = false
             showAttachments = false
             try { focusRequester.requestFocus() } catch (_: IllegalStateException) {}
-            keyboardController?.show()
+            runCatching { keyboardController?.show() }
+                .exceptionOrNull()?.let { DebugLog.exception("input", it) }
         }
     }
     var cameraFile by remember { mutableStateOf<java.io.File?>(null) }
@@ -288,7 +289,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     val cardBorder = if (c.dark) Color(0xFF333333) else Color.Black.copy(alpha = 0.055f)
     Column(
         Modifier.fillMaxWidth()
-            .then(if (keyboardOpen) Modifier.imePadding() else Modifier)
+            .imePadding()
             .padding(bottom = when {
                 keyboardOpen -> 11.dp
                 showAttachments -> 10.dp
@@ -424,9 +425,10 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
             var previousVoiceMode by remember { mutableStateOf<Boolean?>(null) }
             LaunchedEffect(voiceMode) {
                 if (previousVoiceMode == true && !voiceMode) {
-                    try { focusRequester.requestFocus() }
-                    catch (_: IllegalStateException) { }
-                    keyboardController?.show()
+                    runCatching {
+                        focusRequester.requestFocus()
+                        keyboardController?.show()
+                    }.exceptionOrNull()?.let { DebugLog.exception("input", it) }
                 }
                 previousVoiceMode = voiceMode
             }
@@ -492,8 +494,10 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
                 Modifier.align(Alignment.CenterVertically).size(36.dp)
                     .clickable(attSrc, null) {
                         if (!showAttachments) {
-                            focusManager.clearFocus()
-                            keyboardController?.hide()
+                            runCatching {
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                            }.exceptionOrNull()?.let { DebugLog.exception("input", it) }
                         }
                         showAttachments = !showAttachments
                     },

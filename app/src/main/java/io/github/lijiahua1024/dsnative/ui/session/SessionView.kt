@@ -54,8 +54,6 @@ import io.github.lijiahua1024.dsnative.R
 import io.github.lijiahua1024.dsnative.data.*
 import io.github.lijiahua1024.dsnative.data.replyText
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -82,10 +80,9 @@ fun SessionView(
 ) {
     val c = DsTheme.colors
     val activeId by chatStore.activeId.collectAsState()
-    val session by remember(chatStore, activeId) {
-        val id = activeId ?: ""
-        chatStore.sessionCache.map { it[id] }.distinctUntilChanged()
-    }.collectAsState(initial = activeId?.let { chatStore.sessionSnapshot(it) })
+    val sessionCache by chatStore.sessionCache.collectAsState()
+    // 同步派生当前会话：activeId 切换时直接取缓存新值，避免 flow 重建首帧仍保留旧会话先渲染一帧。
+    val session = activeId?.let { sessionCache[it] }
     LaunchedEffect(activeId) {
         DebugLog.log("session", "activeId=${activeId ?: "null"}")
     }
