@@ -65,6 +65,9 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+/** 流式回复 UI 刷新间隔（ms）：聚合 chunk 后再重组，平滑可读优先于逐块抢占。 */
+private const val STREAM_FLUSH_INTERVAL_MS = 160L
+
 /** sessions 排序：updatedAt 新→旧 */
 private fun sortSessions(sessions: List<SessionSummary>) = sessions.sortedByDescending { it.updatedAt }
 
@@ -1305,7 +1308,9 @@ class ChatStore(
                                 break
                             }
                             val now = System.currentTimeMillis()
-                            if (now - lastFlush > 100) {
+                            // 流式出文按节奏聚合 chunk 再刷新 UI：放宽到 160ms 一帧，
+                            // 减少单位时间内的重组/排版次数，让渐进输出平滑可读，而不是逐块抢占主线程。
+                            if (now - lastFlush > STREAM_FLUSH_INTERVAL_MS) {
                                 lastFlush = now
                                 flushMutex.withLock { updateReply(sessionId, reply) }
                             }

@@ -150,7 +150,7 @@ private val URI_SCHEME_RE = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
 private val ORDERED_LIST_PREFIX_RE = Regex("^\\d+[.)]\\s.*")
 
 /** 流式期间 Markdown 解析节流窗口：窗口内沿用上一版 AST，避免每个 chunk 全量重解析。 */
-private const val STREAM_PARSE_THROTTLE_MS = 120L
+private const val STREAM_PARSE_THROTTLE_MS = 160L
 
 // ref .ds-markdown-cite: 14px 高角标（top -5px），圆角 6px 6px 6px 0，
 // 0.5px l1 边框，markdown-placeholder 底，9px/500 等宽三级色数字

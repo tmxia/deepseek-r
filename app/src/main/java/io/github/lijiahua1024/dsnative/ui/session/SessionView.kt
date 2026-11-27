@@ -230,7 +230,8 @@ fun SessionView(
                         is Message.Assistant -> last.status.name
                         null -> "none"
                     }
-                    DebugLog.log("perf", "ctx visible=${curVisible.size} " +
+                    val onScreen = listState.layoutInfo.visibleItemsInfo.size
+                    DebugLog.log("perf", "thread=${curVisible.size} onScreen=$onScreen " +
                         "streaming=${streaming.isNotEmpty()} last=$lastKind")
                 }
             }
