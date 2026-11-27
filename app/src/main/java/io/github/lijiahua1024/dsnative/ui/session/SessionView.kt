@@ -317,7 +317,9 @@ fun SessionView(
             }
             // Sticky-follow per MessageList.tsx: within STICKY_THRESHOLD(40px)
             // of the bottom stays following; scrolling up stops; re-approach
-            // resumes. Content growth (streaming, keyboard resize) follows.
+            // resumes. Content growth (streaming) follows. 触发键只取消息数量、
+            // 增长标记与是否到底，不把 viewportEndOffset 纳入流：键盘伸缩每帧
+            // 改变视口高度时不再强制重滚列表，避免开合动画过程中列表被反复拽跳。
             val stickyPx = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
             var sticky by remember(session?.id) { mutableStateOf(true) }
             val nearBottom by remember {
@@ -339,17 +341,16 @@ fun SessionView(
             }
             LaunchedEffect(session?.id) {
                 snapshotFlow {
-                    val info = listState.layoutInfo
                     val msgs = curVisible
                     val last = msgs.lastOrNull() as? Message.Assistant
-                    val lastVis = info.visibleItemsInfo.lastOrNull()
-                    val atEnd = lastVis != null && info.totalItemsCount > 0 &&
-                        lastVis.index == info.totalItemsCount - 1 &&
-                        (lastVis.offset + lastVis.size - info.viewportEndOffset) < stickyPx
+                    val lastVis = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+                    val atEnd = lastVis != null && listState.layoutInfo.totalItemsCount > 0 &&
+                        lastVis.index == listState.layoutInfo.totalItemsCount - 1 &&
+                        (lastVis.offset + lastVis.size - listState.layoutInfo.viewportEndOffset) < stickyPx
                     Triple(
                         msgs.size,
                         last?.let { replyGrowthKey(it) } ?: 0,
-                        atEnd to info.viewportEndOffset,
+                        atEnd,
                     )
                 }.collect { (size, _, _) ->
                     if (sticky && size > 0) {
