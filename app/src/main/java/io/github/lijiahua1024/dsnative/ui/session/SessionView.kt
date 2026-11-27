@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -810,8 +811,9 @@ fun UserBubble(
                             Box(
                                 Modifier
                                     .size(32.dp)
+                                    .shadow(1.5.dp, androidx.compose.foundation.shape.CircleShape)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(Color.White)
+                                    .background(c.buttonElevatedFill)
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,

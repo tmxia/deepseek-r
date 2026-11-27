@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.CornerRadius
@@ -512,8 +513,9 @@ private fun RenderBlock(
                         Box(
                             Modifier
                                 .size(32.dp)
+                                .shadow(1.5.dp, CircleShape)
                                 .clip(CircleShape)
-                                .background(Color.White)
+                                .background(c.buttonElevatedFill)
                                 .clickable { collapsed = !collapsed },
                             contentAlignment = Alignment.Center,
                         ) {
