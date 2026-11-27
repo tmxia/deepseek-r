@@ -810,14 +810,14 @@ fun UserBubble(
                         ) {
                             Box(
                                 Modifier
-                                    .size(32.dp)
-                                    .shadow(1.5.dp, androidx.compose.foundation.shape.CircleShape)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .shadow(1.5.dp, androidx.compose.foundation.shape.RoundedCornerShape(50))
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                                     .background(c.buttonElevatedFill)
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
-                                    ) { collapsed = !collapsed },
+                                    ) { collapsed = !collapsed }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(

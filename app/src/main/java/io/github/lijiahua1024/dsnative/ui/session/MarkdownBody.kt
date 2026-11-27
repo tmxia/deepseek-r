@@ -512,11 +512,11 @@ private fun RenderBlock(
                     ) {
                         Box(
                             Modifier
-                                .size(32.dp)
-                                .shadow(1.5.dp, CircleShape)
-                                .clip(CircleShape)
+                                .shadow(1.5.dp, androidx.compose.foundation.shape.RoundedCornerShape(50))
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                                 .background(c.buttonElevatedFill)
-                                .clickable { collapsed = !collapsed },
+                                .clickable { collapsed = !collapsed }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             androidx.compose.material3.Icon(
