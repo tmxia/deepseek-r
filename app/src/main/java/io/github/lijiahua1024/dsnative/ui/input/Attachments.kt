@@ -849,6 +849,11 @@ fun ImagePreviewDialog(
         DisposableEffect(dialogWindow) {
             val w = dialogWindow ?: return@DisposableEffect onDispose {}
             WindowCompat.setDecorFitsSystemWindows(w, false)
+            // 主题窗口底是白色(#FFFFFF)：首帧对齐与系统栏开槽处若透出白底，会形成贴边白线和
+            // 打开瞬间的白闪。显式铺成预览底色，任何边缘都不再露白。
+            w.setBackgroundDrawable(
+                android.graphics.drawable.ColorDrawable(0xFF111317.toInt())
+            )
             w.statusBarColor = android.graphics.Color.TRANSPARENT
             w.navigationBarColor = android.graphics.Color.TRANSPARENT
             w.attributes = w.attributes.apply { dimAmount = 1f }
@@ -857,9 +862,12 @@ fun ImagePreviewDialog(
                     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 hide(WindowInsetsCompat.Type.systemBars())
             }
-            // DialogWrapper re-applies wrap_content on every layout pass;
-            // re-assert MATCH_PARENT each time so the window keeps filling
-            // the parent frame (y128..2340, same as the ref overlay)
+            // 进入即铺满窗口，避免首帧仍按 wrap_content 测量、再被布局回调撑满造成的尺寸跳变；
+            // 监听回调仅作兜底，防止 DialogWrapper 后续再次改写窗口尺寸。
+            w.setLayout(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+            )
             val fill = {
                 val lp = w.attributes
                 if (lp.width != WindowManager.LayoutParams.MATCH_PARENT ||
