@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.lijiahua1024.dsnative.data.ChatStore
+import io.github.lijiahua1024.dsnative.data.DebugLog
 import io.github.lijiahua1024.dsnative.data.SettingsStore
 import io.github.lijiahua1024.dsnative.theme.DsTheme
 import io.github.lijiahua1024.dsnative.theme.Strings
@@ -288,6 +289,7 @@ fun DrawerFrame(
         fun settleTo(target: Float) {
             val t = target.coerceIn(0f, 1f)
             val start = progress
+            DebugLog.log("drawer", "settleTo $t (start=$start)")
             settleJob?.cancel()
             if (kotlin.math.abs(t - start) < 0.001f) { progress = t; return }
             settleJob = settleScope.launch {
@@ -383,6 +385,7 @@ fun DrawerFrame(
                         cur.downX = ev.x; cur.downY = ev.y
                         cur.startedOpen = progress >= 0.999f
                         cur.samples.add(ev.x to ev.eventTime)
+                        DebugLog.log("drawer", "gesture down x=${ev.x.toInt()} startedOpen=${cur.startedOpen} progress=$progress")
                     } else return@handler
                 }
                 when (ev.actionMasked) {

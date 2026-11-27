@@ -86,6 +86,9 @@ fun SessionView(
         val id = activeId ?: ""
         chatStore.sessionCache.map { it[id] }.distinctUntilChanged()
     }.collectAsState(initial = activeId?.let { chatStore.sessionSnapshot(it) })
+    LaunchedEffect(activeId) {
+        DebugLog.log("session", "activeId=${activeId ?: "null"}")
+    }
     val streaming by remember(chatStore) {
         chatStore.streaming
     }.collectAsState()

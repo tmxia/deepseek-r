@@ -669,14 +669,19 @@ class ChatStore(
 
     /** 提交草稿；null 目标表示新建会话。返回是否成功发出。 */
     fun sendMessage(targetSessionId: String?): Boolean {
-        if (_importingHistory.value || !_ready.value) return false
+        if (_importingHistory.value || !_ready.value) {
+            DebugLog.log("store", "sendMessage rejected: importing=${_importingHistory.value} ready=${_ready.value}")
+            return false
+        }
         ReadAloud.stop()
         val text = draft(targetSessionId).trim()
         val atts = draftAttachments(targetSessionId)
         if (text.isEmpty() && atts.isEmpty()) return false
+        DebugLog.log("store", "sendMessage target=${targetSessionId ?: "new"} textLen=${text.length} atts=${atts.size}")
         val now = System.currentTimeMillis()
         var sessionId = targetSessionId
         if (sessionId != null && (_streaming.value.contains(sessionId) || _sessionCache.value[sessionId] == null)) {
+            DebugLog.log("store", "sendMessage rejected: streamingOrMissing=$sessionId")
             return false
         }
         if (sessionId == null) {
@@ -685,6 +690,7 @@ class ChatStore(
             _sessionCache.value = _sessionCache.value + (session.id to session)
             _sessions.value = sortSessions(listOf(session.toSummary()) + _sessions.value)
             _activeId.value = session.id
+            DebugLog.log("store", "created session $sessionId")
         }
         val current = _sessionCache.value[sessionId] ?: return false
         val history = visibleMessages(current)
@@ -722,6 +728,7 @@ class ChatStore(
     private val _searchCurrent get() = settings.search.value
 
     fun stopReply(sessionId: String) {
+        DebugLog.log("store", "stopReply $sessionId")
         activeStreams[sessionId]?.close()
         streamJobs[sessionId]?.cancel()
     }
@@ -1389,6 +1396,7 @@ class ChatStore(
             reply = settleReply(reply, ReplyStatus.STOPPED)
             throw e
         } catch (e: ApiError) {
+            DebugLog.exception("store", e)
             reply = when {
                 e.kind == ApiErrorKind.INTERRUPTED && reply.stopReason != null ->
                     settleReply(reply, ReplyStatus.DONE)
@@ -1402,6 +1410,7 @@ class ChatStore(
                     settleReply(reply, ReplyStatus.ERROR, ReplyError(e.kind.name.lowercase(), e.message ?: "", e.status))
             }
         } catch (e: Exception) {
+            DebugLog.exception("store", e)
             // 用户按停止取消 socket：抛出的 SocketException 应记为 stopped 而非错误
             if (!currentCoroutineContext().isActive) {
                 reply = settleReply(reply, ReplyStatus.STOPPED)

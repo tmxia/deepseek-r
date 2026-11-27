@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.R
 import io.github.lijiahua1024.dsnative.data.ChatStore
 import io.github.lijiahua1024.dsnative.data.DraftAttachment
+import io.github.lijiahua1024.dsnative.data.DebugLog
 import io.github.lijiahua1024.dsnative.data.SettingsStore
 import io.github.lijiahua1024.dsnative.theme.DsTheme
 import io.github.lijiahua1024.dsnative.theme.Strings
@@ -99,15 +100,18 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     // 发送成功后收起键盘、清焦点。延后到下一帧：sendMessage 可能新建会话并改 activeId，
     // 先让状态迁移与重组落定，避免在焦点树迁移的同帧操作失效节点；runCatching 兜底。
     val sendDraftAndHide: (String) -> Unit = { draft ->
+        DebugLog.log("input", "sendDraftAndHide len=${draft.trim().length} active=${activeId ?: "null"}")
         chatStore.setDraft(activeId, draft)
-        chatStore.sendMessage(activeId)
+        val sent = chatStore.sendMessage(activeId)
+        DebugLog.log("input", "sendMessage returned=$sent")
         text = ""
         holdScope.launch {
             withFrameNanos { }
-            runCatching {
+            val fail = runCatching {
                 focusManager.clearFocus()
                 keyboardController?.hide()
-            }
+            }.exceptionOrNull()
+            if (fail != null) DebugLog.exception("input", fail)
         }
     }
     val thinking by settings.thinking.collectAsState()
@@ -276,6 +280,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     }
     var previousKeyboardOpen by remember { mutableStateOf(false) }
     LaunchedEffect(keyboardOpen) {
+        DebugLog.log("input", "keyboardOpen=$keyboardOpen prev=$previousKeyboardOpen focused=$focused")
         if (previousKeyboardOpen && !keyboardOpen && focused) focusManager.clearFocus()
         previousKeyboardOpen = keyboardOpen
     }

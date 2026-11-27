@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +51,7 @@ import io.github.lijiahua1024.dsnative.api.ApiError
 import io.github.lijiahua1024.dsnative.api.balanceCurrencySymbol
 import io.github.lijiahua1024.dsnative.api.fetchAccountBalance
 import io.github.lijiahua1024.dsnative.data.ChatStore
+import io.github.lijiahua1024.dsnative.data.DebugLog
 import io.github.lijiahua1024.dsnative.data.SettingsStore
 import io.github.lijiahua1024.dsnative.theme.DsTheme
 import io.github.lijiahua1024.dsnative.theme.Strings
@@ -529,6 +531,7 @@ private fun SettingsLayerBody(
     when (layerPage) {
         "root" -> SettingsRootPage(
             c, card, muted,
+            settings = settings,
             onPage = onPage,
             onPopup = onPopup,
             onHelp = onHelp,
@@ -551,6 +554,7 @@ private fun SettingsLayerBody(
 private fun SettingsRootPage(
     c: io.github.lijiahua1024.dsnative.theme.DsColors,
     card: Color, muted: Color,
+    settings: SettingsStore,
     onPage: (String) -> Unit,
     onPopup: (String) -> Unit,
     onHelp: () -> Unit, onLogout: () -> Unit,
@@ -559,6 +563,31 @@ private fun SettingsRootPage(
     checkingUpdate: Boolean = false,
     onCheckUpdate: () -> Unit = {},
 ) {
+    val debugMode by settings.debugMode.collectAsState()
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showLogDialog by remember { mutableStateOf(false) }
+    val exportLogLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    ctx.contentResolver.openOutputStream(uri)?.use { out ->
+                        out.write(DebugLog.all().joinToString("\n").toByteArray())
+                    } != null
+                }.getOrDefault(false)
+            }
+            DsToast.show(Strings.get(if (ok) "debugLogExported" else "exportFailed"))
+        }
+    }
+    val toggleDebug = {
+        val next = !debugMode
+        settings.setDebugMode(next)
+        DebugLog.enabled = next
+        DsToast.show(Strings.get(if (next) "debugModeOn" else "debugModeOff"))
+    }
     SettingsGroup(Strings.get("settingsGroupAccount"), card, muted) {
         SettingsRow(c, muted, Strings.get("settingsAccountPage"), { ProfileGlyph(c.labelPrimary) }) { onPage("account") }
         SettingsRow(c, muted, Strings.get("settingsDataPage"), { Icon(painterResource(R.drawable.ic_data), null, tint = c.labelPrimary, modifier = Modifier.size(18.dp)) }) { onPage("data") }
@@ -589,17 +618,45 @@ private fun SettingsRootPage(
             value = if (checkingUpdate) Strings.get("checkingForUpdate") else BuildConfig.VERSION_NAME,
             arrow = false,
             enabled = !checkingUpdate,
+            onLongClick = toggleDebug,
         ) {
             onCheckUpdate()
         }
         SettingsRow(c, muted, Strings.get("settingsAgreementsPage"),
             { Icon(painterResource(R.drawable.ic_doc_edit), null, tint = c.labelPrimary, modifier = Modifier.size(20.dp)) }) { onPage("agreements") }
     }
+    if (debugMode) {
+        SettingsGroup(Strings.get("debugLogTitle"), card, muted) {
+            SettingsRow(c, muted, Strings.get("debugLogView"),
+                value = "${DebugLog.size()}", arrow = false) { showLogDialog = true }
+            SettingsRow(c, muted, Strings.get("debugLogExport"), arrow = false) {
+                exportLogLauncher.launch("dsnative-debug-${System.currentTimeMillis()}.log")
+            }
+            SettingsRow(c, muted, Strings.get("debugLogClear"), danger = true, arrow = false) {
+                DebugLog.clear()
+                DsToast.show(Strings.get("debugLogCleared"))
+            }
+        }
+    }
     SettingsGroup(null, card, muted, topGap = 7.8.dp) {
         SettingsRow(c, muted, Strings.get("settingsHelp"), { InfoGlyph("?", c.labelPrimary) }) { onHelp() }
     }
     SettingsGroup(null, card, muted, topGap = 7.8.dp) {
         SettingsRow(c, muted, Strings.get("settingsLogout"), danger = true, arrow = false) { onLogout() }
+    }
+    if (showLogDialog) {
+        val logText = remember(showLogDialog) { DebugLog.all().takeLast(400).joinToString("\n") }
+        AlertDialog(
+            onDismissRequest = { showLogDialog = false },
+            title = { Text(Strings.get("debugLogTitle")) },
+            text = {
+                Box(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(logText.ifEmpty { Strings.get("debugLogEmpty") },
+                        fontSize = 12.sp, lineHeight = 18.sp, color = c.labelPrimary)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showLogDialog = false }) { Text(Strings.get("close")) } },
+        )
     }
 }
 
@@ -648,6 +705,7 @@ private fun SettingsGroup(label: String?, card: Color, muted: Color, topGap: and
 }
 
 // ref .row: minH48, padding 0 15px 0 16px, gap 12, font 16; icon box 22 (svg 18)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun SettingsRow(
     c: io.github.lijiahua1024.dsnative.theme.DsColors,
@@ -658,6 +716,7 @@ private fun SettingsRow(
     danger: Boolean = false,
     arrow: Boolean = true,
     enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit = {},
 ) {
     // ref button.row:active/a.row:active -> background: var(--settings-button)
@@ -667,7 +726,7 @@ private fun SettingsRow(
     Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
         .alpha(if (enabled) 1f else 0.5f)
         .background(if (pressed && enabled) DsTheme.pressTint(pressed, pressBg) else Color.Transparent)
-        .clickable(src, null, enabled = enabled, onClick = onClick)
+        .combinedClickable(src, null, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
         .padding(start = 16.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically) {
         if (icon != null) {

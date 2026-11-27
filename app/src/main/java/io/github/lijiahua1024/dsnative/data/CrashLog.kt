@@ -21,6 +21,7 @@ object CrashLog {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
+                DebugLog.exception("crash", throwable)
                 val dir = File(context.filesDir, DIR).apply { mkdirs() }
                 val file = File(dir, FILE)
                 val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)

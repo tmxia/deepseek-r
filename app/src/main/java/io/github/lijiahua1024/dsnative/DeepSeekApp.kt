@@ -23,6 +23,7 @@ class DeepSeekApp : Application() {
         io.github.lijiahua1024.dsnative.data.CrashLog.install(this)
         ApiOrigin.init(applicationContext)
         settings = SettingsStore(applicationContext)
+        io.github.lijiahua1024.dsnative.data.DebugLog.enabled = settings.debugMode.value
         chatStore = ChatStore(applicationContext, settings, appScope)
         appScope.launch(Dispatchers.Default) {
             prewarmMarkdownParser()

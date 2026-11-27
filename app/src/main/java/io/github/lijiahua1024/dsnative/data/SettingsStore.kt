@@ -82,6 +82,10 @@ class SettingsStore(context: Context) {
     private val _accountProfile = MutableStateFlow(readAccountProfile())
     val accountProfile: StateFlow<AccountProfile> = _accountProfile
 
+    /** 调试模式：默认关闭，长按版本信息唤起；开启后核心模块函数日志进入调试缓冲。 */
+    private val _debugMode = MutableStateFlow(prefs.getBoolean("debug-mode", false))
+    val debugMode: StateFlow<Boolean> = _debugMode
+
     private fun readAccountProfile(): AccountProfile = try {
         val raw = prefs.getString("account-profile", null) ?: return AccountProfile()
         val obj = org.json.JSONObject(raw)
@@ -186,6 +190,11 @@ class SettingsStore(context: Context) {
     fun setSiderCollapsed(value: Boolean) {
         prefs.edit { putBoolean("sider-collapsed", value) }
         _siderCollapsed.value = value
+    }
+
+    fun setDebugMode(value: Boolean) {
+        prefs.edit { putBoolean("debug-mode", value) }
+        _debugMode.value = value
     }
 
     fun setAccountProfile(profile: AccountProfile): Boolean {
