@@ -132,14 +132,16 @@ fun Sider(
     val pressScope = rememberCoroutineScope()
 
     fun selectSessionWithPress(sessionId: String) {
-        pressGesture = SessionPressGesture(sessionId, SessionPressPhase.Light)
+        // 对齐 Web 参照 openSession：点击即切换选中态，避免旧行 active 蓝底与新行
+        // 按压色在延迟窗口内同时出现（两行叠色，观感像阴影/灰带）；高亮残留约 350ms，
+        // 170ms 后收起抽屉。
+        chatStore.selectSession(sessionId)
+        pressGesture = SessionPressGesture(sessionId, SessionPressPhase.Pressed)
         pressScope.launch {
-            delay(17)
-            pressGesture = pressGesture?.copy(phase = SessionPressPhase.Pressed)
-            delay(150)
-            chatStore.selectSession(sessionId)
-            pressGesture = null
+            delay(170)
             onClose()
+            delay(180)
+            pressGesture = null
         }
     }
 
@@ -758,7 +760,7 @@ private fun SearchSessionRow(
     }
 }
 
-private enum class SessionPressPhase { Rest, Light, Pressed }
+private enum class SessionPressPhase { Rest, Pressed }
 
 private data class SessionPressGesture(
     val sessionId: String,
@@ -785,15 +787,13 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
     val pressSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val pressed by pressSrc.collectIsPressedAsState()
     Row(
-        Modifier.fillMaxWidth().height(44.8.dp)
+        Modifier.fillMaxWidth().height(if (selectionMode) 48.dp else 40.dp)
             .clip(RoundedCornerShape(16.dp))
             // selection rows render as plain .select buttons — no active accent;
             // ref .item:active -> bg-skeleton
             .background(
                 when {
                         active && !selectionMode -> c.sidebarNavItemActiveAccent
-                        pressPhase == SessionPressPhase.Light ->
-                            if (c.dark) c.sidebarNavItemActiveAccent.copy(alpha = 0.72f) else Color(0xFFEDF1FE)
                         pressPhase == SessionPressPhase.Pressed ->
                             if (c.dark) c.sidebarNavItemActiveAccent else Color(0xFFE0E8F1)
                         pressed -> DsTheme.pressTint(pressed, c.bgSkeleton)
@@ -865,7 +865,7 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
         }
         val edge = kotlin.math.min(vw - 68.4f, 380f)
         val offX = with(density) { (vw - 8f - (edge - 24f)).dp.roundToPx() }
-        val offY = with(density) { 44.dp.roundToPx() } // item h48, icon btn bottom ≈ +40, +4 gap
+        val offY = with(density) { 40.dp.roundToPx() } // 行高 40dp，菜单贴行底 +4 间隙
         androidx.compose.ui.window.Popup(
             alignment = Alignment.TopEnd,
             offset = androidx.compose.ui.unit.IntOffset(offX, offY),
