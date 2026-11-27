@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -835,31 +836,26 @@ fun ImagePreviewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false),
     ) {
-        // ref AndroidImageViewer.module.css: left/top/width/height 180ms ease-out —
-        // 缩略图位到全屏位的位移放大，近似为整体 fade+scale 入场
-        val viewerEnter = remember { androidx.compose.animation.core.Animatable(0f) }
-        LaunchedEffect(Unit) {
-            viewerEnter.animateTo(1f,
-                androidx.compose.animation.core.tween(180,
-                    easing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.58f, 1f)))
-        }
         // ref preview is fully immersive: the WebView overlay hides both system
         // bars and sits under a black status scrim
         val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
         DisposableEffect(dialogWindow) {
             val w = dialogWindow ?: return@DisposableEffect onDispose {}
             WindowCompat.setDecorFitsSystemWindows(w, false)
-            // 主题窗口底是白色(#FFFFFF)：首帧对齐与系统栏开槽处若透出白底，会形成贴边白线和
-            // 打开瞬间的白闪。显式铺成预览底色，任何边缘都不再露白。
+            // 窗口底与系统栏一律纯黑，显式关闭浅色状态栏/导航栏外观，避免顶部开槽露浅色。
             w.setBackgroundDrawable(
-                android.graphics.drawable.ColorDrawable(0xFF111317.toInt())
+                android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK)
             )
-            w.statusBarColor = android.graphics.Color.TRANSPARENT
-            w.navigationBarColor = android.graphics.Color.TRANSPARENT
-            w.attributes = w.attributes.apply { dimAmount = 1f }
+            w.statusBarColor = android.graphics.Color.BLACK
+            w.navigationBarColor = android.graphics.Color.BLACK
+            // 关闭系统弹窗默认进出场动画：动画期间内容/底色叠加缩放淡入，首帧会透出浅色
+            // 主题底，是打开跳闪与关闭闪屏的主要来源；windowAnimations=0 即不播窗口动画。
+            w.attributes = w.attributes.apply { windowAnimations = 0 }
             WindowInsetsControllerCompat(w, w.decorView).apply {
                 systemBarsBehavior =
                     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
                 hide(WindowInsetsCompat.Type.systemBars())
             }
             // 进入即铺满窗口，避免首帧仍按 wrap_content 测量、再被布局回调撑满造成的尺寸跳变；
@@ -885,12 +881,8 @@ fun ImagePreviewDialog(
                 w.decorView.removeOnLayoutChangeListener(layoutListener)
             }
         }
-        Box(Modifier.fillMaxSize().background(Color(0xFF111317))
-            .graphicsLayer {
-                alpha = viewerEnter.value
-                val s = 0.96f + 0.04f * viewerEnter.value
-                scaleX = s; scaleY = s
-            }) {
+        // 根背景首帧即不透明纯黑：不再做整体 alpha 淡入/缩放，避免打开过程的跳变。
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
             val activeCrop = cropState
             if (activeCrop != null) {
                 CropEditorOverlay(
@@ -930,31 +922,49 @@ fun ImagePreviewDialog(
                         strokeWidth = 2.dp,
                     )
                 }
-                is PreviewDecode.Ready -> Box(
-                    Modifier.fillMaxSize().padding(top = 25.dp)
-                        .graphicsLayer {
-                            scaleX = zoom; scaleY = zoom
-                            translationX = pan.x; translationY = pan.y
-                        }
-                        .pointerInput(item.id) {
-                            detectTransformGestures { _, panDelta, zoomDelta, _ ->
-                                zoom = (zoom * zoomDelta).coerceIn(1f, 5f)
-                                if (zoom > 1.01f) pan += panDelta
+                is PreviewDecode.Ready -> {
+                    val bmp = decoded.bitmap
+                    var viewSize by remember(item.id) {
+                        mutableStateOf(androidx.compose.ui.unit.IntSize.Zero)
+                    }
+                    // cover 基准缩放：填满整屏、溢出部分裁掉；放大后平移按溢出量限位，
+                    // 避免把图片拖出屏幕露出黑底。
+                    val coverScale = if (viewSize.width > 0 && viewSize.height > 0)
+                        maxOf(viewSize.width.toFloat() / bmp.width,
+                            viewSize.height.toFloat() / bmp.height)
+                    else 1f
+                    val limitX = maxOf(0f, (bmp.width * coverScale * zoom - viewSize.width) / 2f)
+                    val limitY = maxOf(0f, (bmp.height * coverScale * zoom - viewSize.height) / 2f)
+                    Box(
+                        Modifier.fillMaxSize()
+                            .onSizeChanged { viewSize = it }
+                            .graphicsLayer {
+                                scaleX = zoom; scaleY = zoom
+                                translationX = pan.x; translationY = pan.y
                             }
-                        }
-                        .pointerInput(item.id) {
-                            detectTapGestures(
-                                onTap = { if (zoom <= 1.01f) onClose() },
-                                onDoubleTap = {
-                                    if (zoom > 1.15f) { zoom = 1f; pan = Offset.Zero }
-                                    else zoom = 2.4f
-                                },
-                            )
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(decoded.bitmap, item.name, Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit)
+                            .pointerInput(item.id) {
+                                detectTransformGestures { _, panDelta, zoomDelta, _ ->
+                                    zoom = (zoom * zoomDelta).coerceIn(1f, 5f)
+                                    pan = if (zoom > 1.01f) Offset(
+                                        (pan.x + panDelta.x).coerceIn(-limitX, limitX),
+                                        (pan.y + panDelta.y).coerceIn(-limitY, limitY),
+                                    ) else Offset.Zero
+                                }
+                            }
+                            .pointerInput(item.id) {
+                                detectTapGestures(
+                                    onTap = { if (zoom <= 1.01f) onClose() },
+                                    onDoubleTap = {
+                                        if (zoom > 1.15f) { zoom = 1f; pan = Offset.Zero }
+                                        else zoom = 2.4f
+                                    },
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Image(bmp, item.name, Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop)
+                    }
                 }
                 PreviewDecode.Error -> Column(
                     Modifier.align(Alignment.Center),
