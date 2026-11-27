@@ -765,7 +765,8 @@ fun UserBubble(
             // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
             // 或折叠选择，不会被重置回默认折叠（修复展开后等待片刻自动收回、手动收起不生效）。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(true) }
-            val bubbleShape = RoundedCornerShape(22.dp, 22.dp, 4.dp, 22.dp)
+            // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
+            val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
                 Column(
                     Modifier.align(Alignment.TopEnd)
