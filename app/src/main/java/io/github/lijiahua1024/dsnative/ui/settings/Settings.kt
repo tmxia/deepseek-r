@@ -53,6 +53,7 @@ import io.github.lijiahua1024.dsnative.api.cacheAccountBalance
 import io.github.lijiahua1024.dsnative.api.fetchAccountBalance
 import io.github.lijiahua1024.dsnative.api.lastCachedBalance
 import io.github.lijiahua1024.dsnative.data.ChatStore
+import io.github.lijiahua1024.dsnative.data.CrashLog
 import io.github.lijiahua1024.dsnative.data.DebugLog
 import io.github.lijiahua1024.dsnative.data.SettingsStore
 import io.github.lijiahua1024.dsnative.theme.DsTheme
@@ -569,6 +570,7 @@ private fun SettingsRootPage(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var showLogDialog by remember { mutableStateOf(false) }
+    var showCrashDialog by remember { mutableStateOf(false) }
     // 清空日志后驱动「查看日志」计数立即重算，避免仍显示旧条数。
     var logNonce by remember { mutableStateOf(0) }
     val exportLogLauncher = rememberLauncherForActivityResult(
@@ -579,7 +581,16 @@ private fun SettingsRootPage(
             val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
                     ctx.contentResolver.openOutputStream(uri)?.use { out ->
-                        out.write(DebugLog.all().joinToString("\n").toByteArray())
+                        val debugText = DebugLog.all().joinToString("\n")
+                        val crashText = CrashLog.readAll()
+                        val body = buildString {
+                            append(debugText)
+                            if (crashText.isNotEmpty()) {
+                                if (isNotEmpty()) append("\n\n")
+                                append("===== crash.log =====\n").append(crashText)
+                            }
+                        }
+                        out.write(body.toByteArray())
                     } != null
                 }.getOrDefault(false)
             }
@@ -634,6 +645,7 @@ private fun SettingsRootPage(
         SettingsGroup(Strings.get("debugLogTitle"), card, muted) {
             SettingsRow(c, muted, Strings.get("debugLogView"),
                 value = "$logCount", arrow = false) { showLogDialog = true }
+            SettingsRow(c, muted, Strings.get("debugCrashView"), arrow = false) { showCrashDialog = true }
             SettingsRow(c, muted, Strings.get("debugLogExport"), arrow = false) {
                 exportLogLauncher.launch("dsnative-debug-${System.currentTimeMillis()}.log")
             }
@@ -662,6 +674,22 @@ private fun SettingsRootPage(
                 }
             },
             confirmButton = { TextButton(onClick = { showLogDialog = false }) { Text(Strings.get("close")) } },
+        )
+    }
+    if (showCrashDialog) {
+        val crashText = remember(showCrashDialog) {
+            CrashLog.readAll().lines().takeLast(400).joinToString("\n")
+        }
+        AlertDialog(
+            onDismissRequest = { showCrashDialog = false },
+            title = { Text(Strings.get("debugCrashView")) },
+            text = {
+                Box(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(crashText.ifEmpty { Strings.get("debugCrashEmpty") },
+                        fontSize = 12.sp, lineHeight = 18.sp, color = c.labelPrimary)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showCrashDialog = false }) { Text(Strings.get("close")) } },
         )
     }
 }

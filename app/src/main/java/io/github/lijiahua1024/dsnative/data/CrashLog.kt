@@ -17,7 +17,11 @@ object CrashLog {
     private const val FILE = "crash.log"
     private const val MAX_BYTES = 256 * 1024
 
+    @Volatile
+    private var appContext: Context? = null
+
     fun install(context: Context) {
+        appContext = context.applicationContext
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
@@ -38,4 +42,11 @@ object CrashLog {
             previous?.uncaughtException(thread, throwable)
         }
     }
+
+    /** 读取持久化崩溃记录全文；无记录或读取失败时返回空串。 */
+    fun readAll(): String = runCatching {
+        val base = appContext?.filesDir ?: return ""
+        val file = File(base, DIR).resolve(FILE)
+        if (file.exists()) file.readText().trim() else ""
+    }.getOrDefault("")
 }
