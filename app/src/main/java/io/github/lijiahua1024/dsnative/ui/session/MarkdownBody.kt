@@ -493,7 +493,7 @@ private fun RenderBlock(
                                 else io.github.lijiahua1024.dsnative.R.drawable.ic_copy),
                             null, tint = c.labelSecondary, modifier = Modifier.size(14.dp))
                         Text(Strings.get(if (copied) "copied" else "copy"),
-                            fontSize = 13.sp, lineHeight = 14.2.sp, color = c.labelSecondary,
+                            fontSize = 13.sp, lineHeight = 20.sp, color = c.labelSecondary,
                             modifier = Modifier.padding(start = 3.dp))
                     }
                 }
@@ -526,13 +526,13 @@ private fun RenderBlock(
                     }
                     Text(
                         highlightedCode,
-                        fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 19.sp,
+                        fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 22.sp,
                         style = cssLeading,
                         maxLines = if (needsFold && collapsed) 5 else Int.MAX_VALUE,
                         overflow = TextOverflow.Clip,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 14.9.dp, end = 34.9.dp, top = 14.9.dp, bottom = 14.9.dp),
+                            .padding(16.dp),
                     )
                 }
                 // ref .foldToggle：margin 0 16px 12px、h28 r8 px10 gap4、13px/20px、labelSecondary
@@ -958,7 +958,7 @@ private fun RenderTableGrid(
                             Modifier
                                 .width(colW)
                                 .fillMaxHeight()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             if (cell != null) {
@@ -974,7 +974,7 @@ private fun RenderTableGrid(
                                 Text(
                                     cellStr,
                                     fontSize = 15.sp,
-                                    lineHeight = 23.sp,
+                                    lineHeight = 25.sp,
                                     fontWeight = if (isHeader) FontWeight.Medium else FontWeight.Normal,
                                     style = cssLeading,
                                     color = c.labelPrimary,

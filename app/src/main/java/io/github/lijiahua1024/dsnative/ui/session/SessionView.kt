@@ -1480,13 +1480,13 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                 0.34f to titleColor, 0.5f to dim, 0.66f to titleColor,
                 start = androidx.compose.ui.geometry.Offset(-3f * w * (1f - p.value), 0f),
                 end = androidx.compose.ui.geometry.Offset(-3f * w * (1f - p.value) + 4f * w, 0f)),
-            fontSize = 14.sp,
+            fontSize = 16.75.sp,
         )
     } else {
-        TextStyle(color = titleColor, fontSize = 14.sp)
+        TextStyle(color = titleColor, fontSize = 16.75.sp)
     }
     Column {
-        Row(Modifier.fillMaxWidth().height(32.dp).clickable {
+        Row(Modifier.fillMaxWidth().height(34.dp).clickable {
             when {
                 previewActive && previewOverflow -> streamExpanded = !streamExpanded
                 else -> override = !expanded
@@ -1510,7 +1510,7 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                     }
                 }
                 else -> Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
-                    modifier = Modifier.size(14.dp).rotate(chevDeg))
+                    modifier = Modifier.size(17.dp).rotate(chevDeg))
             }
         }
         AnimatedVisibility(expanded,
@@ -1535,7 +1535,7 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                                 .then(if (inPreview) Modifier.verticalScroll(scrollState) else Modifier)
                                 .onSizeChanged { size -> previewOverflow = size.height > previewHeightPx }
                         ) {
-                            Text(block.thinking, fontSize = 14.sp, color = c.thinkingText)
+                            Text(block.thinking, fontSize = 15.sp, lineHeight = 24.sp, color = c.thinkingText)
                         }
                         // ref .previewFade：预览超出时底部渐变淡出到会话背景
                         if (inPreview && previewOverflow) {
