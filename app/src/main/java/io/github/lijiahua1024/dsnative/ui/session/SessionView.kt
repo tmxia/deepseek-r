@@ -817,13 +817,13 @@ fun UserBubble(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
                                     ) { collapsed = !collapsed }
-                                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     painterResource(R.drawable.ic_chevron_right), null,
                                     tint = c.labelSecondary,
-                                    modifier = Modifier.size(14.dp).rotate(if (collapsed) 90f else 270f),
+                                    modifier = Modifier.size(12.dp).rotate(if (collapsed) 90f else 270f),
                                 )
                             }
                         }
