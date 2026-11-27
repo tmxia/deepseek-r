@@ -397,7 +397,7 @@ object Strings {
             "uploadUnsupportedFormat" -> pick("上传的文件包含暂未支持的文件格式，请转换文件格式后重试。支持 PDF、DOC、XLSX、PPT、图片、文本、代码等。", "The selected files include unsupported formats. Please convert them and try again. Supported: PDF, DOC, XLSX, PPT, images, text, code, and more.")
             "uploadFileStatusFailed" -> pick("上传失败", "Upload failed")
             "uploadRetry" -> pick("{message}，点击重试", "{message}. Click to retry")
-            "androidSaveImage" -> pick("保存到相册", "Save to photos")
+            "androidSaveImage" -> pick("保存", "Save")
             "androidReplaceImage" -> pick("替换", "Replace")
             "remove" -> pick("移除", "Remove")
             "androidPreviewDraftImage" -> pick("预览图片 {name}", "Preview image {name}")
