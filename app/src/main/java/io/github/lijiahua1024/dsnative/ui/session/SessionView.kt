@@ -384,6 +384,12 @@ fun SessionView(
                             scope.launch {
                                 val msgs = session?.let { visibleMessages(it) } ?: return@launch
                                 if (msgs.isNotEmpty()) {
+                                    // 长会话远距跳转时，animateScrollToItem 内部会先按
+                                    // teleport 锚定末条再补动画；末条尚未测量时锚点估算
+                                    // 会落在上一条用户气泡，表现为先停在用户气泡、再才到底。
+                                    // 先把末条锚到可见区完成测量，再带动画滚到底，
+                                    // 第二次调用时末条已可见，不再走 teleport 两段式。
+                                    listState.scrollToItem(msgs.size - 1)
                                     listState.animateScrollToItem(msgs.size - 1, Int.MAX_VALUE)
                                 }
                             }
