@@ -250,20 +250,19 @@ fun SessionView(
                 .nestedScroll(remember { io.github.lijiahua1024.dsnative.ui.ScrollTracker("chat") }),
                 contentPadding = PaddingValues(bottom = 20.5.dp)) {
                 items(visible.size, key = { visible[it].id }, contentType = { if (visible[it] is Message.User) "user" else "assistant" }) { index ->
+                    // 最新一轮：最后一条用户消息及其后所有回复。该轮内容默认展开；更早轮次默认折叠。
+                    val lastUserIdx = visible.indexOfLast { it is Message.User }
+                    val isLatestTurn = lastUserIdx >= 0 && index >= lastUserIdx
                     when (val msg = visible[index]) {
                         is Message.User -> {
-                            val reply = visible.getOrNull(index + 1) as? Message.Assistant
-                            val fresh = reply?.status == ReplyStatus.PENDING ||
-                                reply?.status == ReplyStatus.STREAMING ||
-                                (reply == null && streaming.contains(curSessionId))
                             UserBubble(
                                 msg = msg,
                                 sessionId = curSessionId,
                                 siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
-                                uploadReply = reply,
+                                uploadReply = visible.getOrNull(index + 1) as? Message.Assistant,
                                 chatStore = chatStore,
                                 onMenu = onUserMenu,
-                                fresh = fresh,
+                                fresh = isLatestTurn,
                             )
                         }
                         is Message.Assistant -> AssistantView(
@@ -272,6 +271,7 @@ fun SessionView(
                             siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
                             chatStore = chatStore,
                             isLast = index == visible.size - 1,
+                            fresh = isLatestTurn,
                             onOpenSettings = onOpenSettings,
                             foldThinking = foldThinking,
                             onOpenMenu = onAssistantMenu,
@@ -771,9 +771,9 @@ fun UserBubble(
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
             // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
-            // 或折叠选择，不会被重置回默认折叠（修复展开后等待片刻自动收回、手动收起不生效）。
-            // 当前回合回复未结束（fresh，新产生的消息）保持展开；回复结束后再按历史默认折叠。
-            var collapsed by rememberSaveable(msg.id, fresh) { mutableStateOf(!fresh) }
+            // 或折叠选择。key 只取消息 id，不挂 fresh：用户手动选择后不被最新一轮/历史翻转覆盖；
+            // 初始值仅在首次挂载时按是否最新一轮取（最新一轮展开，更早轮次折叠）。
+            var collapsed by rememberSaveable(msg.id) { mutableStateOf(!fresh) }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
@@ -1044,6 +1044,7 @@ fun AssistantView(
     siblingIds: List<String>,
     chatStore: ChatStore,
     isLast: Boolean = false,
+    fresh: Boolean = false,
     onOpenSettings: () -> Unit = {},
     foldThinking: Boolean = true,
     onOpenMenu: (Message.Assistant, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
@@ -1087,7 +1088,8 @@ fun AssistantView(
                 is ReplyBlock.Thinking -> ThinkingBlock(block, msg, foldThinking).also { prevWasStep = true }
                 is ReplyBlock.Text -> MarkdownBody(block.text,
                     Modifier.padding(top = if (prevWasStep) 5.dp else 0.dp),
-                    streaming = msg.status == ReplyStatus.STREAMING)
+                    streaming = msg.status == ReplyStatus.STREAMING,
+                    fresh = fresh)
                     .also { prevWasStep = false }
                 is ReplyBlock.Tool -> {
                     val step = toolStep(block, msg.blocks, sources, msg.status == ReplyStatus.STREAMING)
