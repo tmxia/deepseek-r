@@ -332,22 +332,18 @@ fun MarkdownBody(
             }
         }
     }
-    // 非流式（历史/静止消息）：挂载时同步解析一次。
-    // 流式：CommonMark 解析放到 Default 线程协程里完成，主线程只渲染上一版 AST；
-    // 新到的尾部先用纯文本平铺出来，避免解析与正则扫描压在帧上造成卡顿后整段冒出。
+    // AST 解析统一放到 Default 线程协程：主线程只渲染上一版 AST；
+    // 新到的尾部先用纯文本平铺，避免解析与正则扫描压在帧上造成卡顿后整段冒出。
+    // 首帧兜底同步解析一次，历史消息挂载不闪纯文本；流式结束（DONE）切换时
+    // 也沿用上一版后台 AST，不在主线程补一次整段重解析。
     var asyncChunks by remember { mutableStateOf<List<ParsedMarkdownChunk>?>(null) }
     LaunchedEffect(text) {
-        if (!streaming) return@LaunchedEffect
         val chunks = withContext(Dispatchers.Default) {
             splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
         }
         asyncChunks = chunks
     }
-    val parsedChunks = when {
-        !streaming -> splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
-        asyncChunks != null -> asyncChunks!!
-        else -> emptyList()
-    }
+    val parsedChunks = asyncChunks ?: splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
