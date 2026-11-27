@@ -149,6 +149,9 @@ private val CITE_BADGE_SHAPE = androidx.compose.foundation.shape.RoundedCornerSh
 private val URI_SCHEME_RE = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
 private val ORDERED_LIST_PREFIX_RE = Regex("^\\d+[.)]\\s.*")
 
+/** 流式期间 Markdown 解析节流窗口：窗口内沿用上一版 AST，避免每个 chunk 全量重解析。 */
+private const val STREAM_PARSE_THROTTLE_MS = 120L
+
 // ref .ds-markdown-cite: 14px 高角标（top -5px），圆角 6px 6px 6px 0，
 // 0.5px l1 边框，markdown-placeholder 底，9px/500 等宽三级色数字
 @Composable
@@ -329,8 +332,22 @@ fun MarkdownBody(
             }
         }
     }
-    val parsedChunks = remember(text) {
-        splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
+    // 流式期解析节流：窗口内复用上次的 chunk AST，不在每个 chunk 上全量重解析；
+    // 非流式或流式结束后下次组合即按最新文本重新解析。
+    val parseHolder = remember {
+        object {
+            var chunks: List<ParsedMarkdownChunk> = emptyList()
+            var parsedAt: Long = 0L
+        }
+    }
+    val now = android.os.SystemClock.uptimeMillis()
+    val throttled = streaming && parseHolder.chunks.isNotEmpty() &&
+        now - parseHolder.parsedAt < STREAM_PARSE_THROTTLE_MS
+    val parsedChunks = if (throttled) parseHolder.chunks else {
+        splitMarkdownChunks(text).map(::getParsedMarkdownChunk).also {
+            parseHolder.chunks = it
+            parseHolder.parsedAt = now
+        }
     }
     val content: @Composable () -> Unit = {
         Column(modifier) {
@@ -384,7 +401,10 @@ private fun RenderBlock(
     fresh: Boolean = false,
 ) {
     when (node) {
-        is Paragraph -> RenderParagraph(inlineText(node, c, uriHandler), c, streaming, mathTokens)
+        is Paragraph -> {
+            val annotated = remember(node, c.dark, uriHandler) { inlineText(node, c, uriHandler) }
+            RenderParagraph(annotated, c, streaming, mathTokens)
+        }
         is Heading -> {
             val (size, lh) = when (node.level) {
                 1 -> 24.sp to 34.sp
@@ -392,8 +412,9 @@ private fun RenderBlock(
                 3 -> 20.sp to 30.sp
                 else -> 16.sp to 28.sp
             }
+            val hAnnotated = remember(node, c.dark, uriHandler) { inlineText(node, c, uriHandler) }
             val (hStr, hInline) = rememberInlineMathPrepared(
-                inlineText(node, c, uriHandler), c, mathTokens, fontSizeSp = size.value,
+                hAnnotated, c, mathTokens, fontSizeSp = size.value,
             )
             Text(hStr, fontSize = size,
                 lineHeight = lh, fontWeight = if (node.level <= 3) FontWeight.Bold else FontWeight.SemiBold,
@@ -930,8 +951,11 @@ private fun RenderTableGrid(
                             contentAlignment = Alignment.CenterStart,
                         ) {
                             if (cell != null) {
+                                val cellAnnotated = remember(cell, c.dark, uriHandler) {
+                                    inlineText(cell, c, uriHandler)
+                                }
                                 val (cellStr, cellInline) = rememberInlineMathPrepared(
-                                    inlineText(cell, c, uriHandler),
+                                    cellAnnotated,
                                     c,
                                     mathTokens,
                                     fontSizeSp = 15f,

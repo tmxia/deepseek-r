@@ -330,6 +330,7 @@ fun DrawerFrame(
             var start = -1f // -1 = not started (progress is 0..1)
             var current = 0f
             var cancelled = false
+            var armed = false
             val samples = java.util.ArrayDeque<Pair<Float, Long>>()
         }
         DisposableEffect(Unit) {
@@ -362,6 +363,10 @@ fun DrawerFrame(
                         g.start = -1f
                         return
                     }
+                    if (!g.armed) {
+                        g.armed = true
+                        DebugLog.log("drawer", "drag start x=${x.toInt()} startedOpen=${g.startedOpen}")
+                    }
                 }
                 val distance = kotlin.math.sign(dx) * max(0f, horizontal - slopPx)
                 g.current = (g.start + (1.075f * distance) / edgePx).coerceIn(0f, 1f)
@@ -385,7 +390,6 @@ fun DrawerFrame(
                         cur.downX = ev.x; cur.downY = ev.y
                         cur.startedOpen = progress >= 0.999f
                         cur.samples.add(ev.x to ev.eventTime)
-                        DebugLog.log("drawer", "gesture down x=${ev.x.toInt()} startedOpen=${cur.startedOpen} progress=$progress")
                     } else return@handler
                 }
                 when (ev.actionMasked) {

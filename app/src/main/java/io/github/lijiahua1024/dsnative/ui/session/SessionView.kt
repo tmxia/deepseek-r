@@ -227,12 +227,30 @@ fun SessionView(
             var assistant = 0
             var chars = 0
             var files = 0
+            var imgs = 0
+            var thinking = 0
+            var tool = 0
+            var text = 0
             for (m in visible) when (m) {
-                is Message.User -> { user++; chars += m.content.length; files += m.files.size }
-                is Message.Assistant -> { assistant++; chars += replyText(m).length }
+                is Message.User -> {
+                    user++
+                    chars += m.content.length
+                    files += m.files.size
+                    imgs += m.files.count { it.isImage }
+                }
+                is Message.Assistant -> {
+                    assistant++
+                    chars += replyText(m).length
+                    for (b in m.blocks) when (b) {
+                        is ReplyBlock.Thinking -> thinking++
+                        is ReplyBlock.Tool -> tool++
+                        is ReplyBlock.Text -> text++
+                    }
+                }
             }
             DebugLog.log("perf", "session=${activeId ?: "new"} msgs=${visible.size} " +
-                "user=$user assistant=$assistant chars=$chars files=$files")
+                "user=$user assistant=$assistant chars=$chars files=$files img=$imgs " +
+                "think=$thinking tool=$tool text=$text")
         }
         LaunchedEffect(activeId) {
             var lastLogged = -1
