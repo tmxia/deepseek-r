@@ -97,22 +97,18 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val holdScope = androidx.compose.runtime.rememberCoroutineScope()
-    // 发送成功后收起键盘、清焦点。延后到下一帧：sendMessage 可能新建会话并改 activeId，
-    // 先让状态迁移与重组落定，避免在焦点树迁移的同帧操作失效节点；runCatching 兜底。
+    // 参照 replica Web：发送后同步移除焦点、收起键盘，先于消息落库/会话状态变更，
+    // 不在下帧协程里与消息追加、流式回复的重组竞态。先拆掉输入连接再挂新气泡，避免
+    // 仍连着的输入框在后续布局/节点迁移中被系统重新挂起、把已收起的键盘再次唤起。
     val sendDraftAndHide: (String) -> Unit = { draft ->
-        DebugLog.log("input", "sendDraftAndHide len=${draft.trim().length} active=${activeId ?: "null"}")
+        val teardown = runCatching {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }.exceptionOrNull()
+        if (teardown != null) DebugLog.exception("input", teardown)
         chatStore.setDraft(activeId, draft)
-        val sent = chatStore.sendMessage(activeId)
-        DebugLog.log("input", "sendMessage returned=$sent")
+        chatStore.sendMessage(activeId)
         text = ""
-        holdScope.launch {
-            withFrameNanos { }
-            val fail = runCatching {
-                focusManager.clearFocus()
-                keyboardController?.hide()
-            }.exceptionOrNull()
-            if (fail != null) DebugLog.exception("input", fail)
-        }
     }
     val thinking by settings.thinking.collectAsState()
     val search by settings.search.collectAsState()
@@ -281,7 +277,6 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     }
     var previousKeyboardOpen by remember { mutableStateOf(false) }
     LaunchedEffect(keyboardOpen) {
-        DebugLog.log("input", "keyboardOpen=$keyboardOpen prev=$previousKeyboardOpen focused=$focused imeBottom=${imeInsets.getBottom(density)}")
         if (previousKeyboardOpen && !keyboardOpen && focused) focusManager.clearFocus()
         previousKeyboardOpen = keyboardOpen
     }
