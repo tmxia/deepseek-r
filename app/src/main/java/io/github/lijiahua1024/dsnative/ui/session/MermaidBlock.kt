@@ -244,8 +244,12 @@ fun MermaidCodeBlock(
                         val availW = with(density) { maxWidth.toPx() }.coerceAtLeast(1f)
                         val fitScale = min(1f, availW / measuredLayout.widthPx.coerceAtLeast(1f))
                         if (fitScale >= 0.45f) {
-                            val drawW = with(density) { (measuredLayout.widthPx * fitScale).toDp() }
-                            val drawH = with(density) { (measuredLayout.heightPx * fitScale).toDp() }
+                            val drawW = with(density) {
+                                (measuredLayout.widthPx * fitScale).toDp().value.coerceAtMost(2048f).dp
+                            }
+                            val drawH = with(density) {
+                                (measuredLayout.heightPx * fitScale).toDp().value.coerceAtMost(2048f).dp
+                            }
                             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                 Canvas(
                                     Modifier
@@ -264,8 +268,12 @@ fun MermaidCodeBlock(
                             }
                         } else {
                             val hScroll = rememberScrollState()
-                            val drawW = with(density) { measuredLayout.widthPx.toDp() }
-                            val drawH = with(density) { measuredLayout.heightPx.toDp() }
+                            val drawW = with(density) {
+                                measuredLayout.widthPx.toDp().value.coerceAtMost(2048f).dp
+                            }
+                            val drawH = with(density) {
+                                measuredLayout.heightPx.toDp().value.coerceAtMost(2048f).dp
+                            }
                             Box(
                                 Modifier
                                     .fillMaxWidth()
@@ -457,8 +465,12 @@ private fun MermaidFullscreenDialog(
                             max(0.55f, availH / layout.heightPx.coerceAtLeast(1f)),
                         ).coerceAtMost(1.8f)
                         val totalScale = baseScale * zoom
-                        val cardW = with(density) { (layout.widthPx * baseScale).toDp() }
-                        val cardH = with(density) { (layout.heightPx * baseScale).toDp() }
+                        val cardW = with(density) {
+                            (layout.widthPx * baseScale).toDp().value.coerceAtMost(2048f).dp
+                        }
+                        val cardH = with(density) {
+                            (layout.heightPx * baseScale).toDp().value.coerceAtMost(2048f).dp
+                        }
                         Box(
                             Modifier
                                 .fillMaxWidth()

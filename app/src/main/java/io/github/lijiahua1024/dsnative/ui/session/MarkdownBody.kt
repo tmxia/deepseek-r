@@ -198,7 +198,7 @@ private data class ParsedMarkdownChunk(
     val blocks: List<Node>,
 )
 
-private val markdownChunkCache = object : android.util.LruCache<String, ParsedMarkdownChunk>(64) {}
+private val markdownChunkCache = object : android.util.LruCache<String, ParsedMarkdownChunk>(128) {}
 
 private fun getParsedMarkdownChunk(rawChunk: String): ParsedMarkdownChunk {
     synchronized(markdownChunkCache) {
@@ -1284,8 +1284,8 @@ private val CODE_TOKEN_RE = Regex("(\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|/
 
 // 代码高亮 AnnotatedString 跨实例缓存：产物为纯 SpanStyle 文本数据、不可变，
 // 回收重挂命中即免重复正则扫描与组装；键含明暗主题与语言。
-private val highlightCache = object : android.util.LruCache<String, AnnotatedString>(64) {
-    override fun sizeOf(key: String, value: AnnotatedString): Int = key.length + 16
+private val highlightCache = object : android.util.LruCache<String, AnnotatedString>(128) {
+    override fun sizeOf(key: String, value: AnnotatedString): Int = 1
 }
 
 private fun getHighlighted(

@@ -522,8 +522,9 @@ private fun DrawScope.drawMathDelimiter(cmd: DrawCmd.DelimDraw) {
 @Composable
 internal fun InlineLatexCanvas(measured: MeasuredLatexFormula) {
     val density = LocalDensity.current
-    val wDp = with(density) { measured.widthPx.toDp() }
-    val hDp = with(density) { measured.heightPx.toDp() }
+    // 防御：测量值异常放大时封顶画布尺寸，避免把超界尺寸带进 Constraints 测量。
+    val wDp = with(density) { measured.widthPx.toDp().value.coerceAtMost(1600f).dp }
+    val hDp = with(density) { measured.heightPx.toDp().value.coerceAtMost(1600f).dp }
     Canvas(Modifier.size(wDp, hDp)) {
         for (cmd in measured.drawCommands) {
             when (cmd) {

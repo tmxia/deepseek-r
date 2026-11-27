@@ -68,6 +68,9 @@ import io.github.lijiahua1024.dsnative.ui.input.ChatInput
 import io.github.lijiahua1024.dsnative.ui.input.VoiceInput
 import io.github.lijiahua1024.dsnative.ui.input.VoiceOverlay
 
+// perf 结构计数复用的静态正则，避免每个文本块重复编译。
+private val FENCE_RE = Regex("```")
+
 @Composable
 fun SessionView(
     settings: SettingsStore,
@@ -231,6 +234,10 @@ fun SessionView(
             var thinking = 0
             var tool = 0
             var text = 0
+            var codeFence = 0
+            var tableRow = 0
+            var mathBlock = 0
+            var mermaid = 0
             for (m in visible) when (m) {
                 is Message.User -> {
                     user++
@@ -244,13 +251,21 @@ fun SessionView(
                     for (b in m.blocks) when (b) {
                         is ReplyBlock.Thinking -> thinking++
                         is ReplyBlock.Tool -> tool++
-                        is ReplyBlock.Text -> text++
+                        is ReplyBlock.Text -> {
+                            text++
+                            codeFence += FENCE_RE.findAll(b.text).count()
+                            mermaid += if (b.text.contains("```mermaid")) 1 else 0
+                            mathBlock += b.text.split("$$").size - 1
+                            tableRow += b.text.lineSequence()
+                                .count { it.trimStart().startsWith("|") }
+                        }
                     }
                 }
             }
             DebugLog.log("perf", "session=${activeId ?: "new"} msgs=${visible.size} " +
                 "user=$user assistant=$assistant chars=$chars files=$files img=$imgs " +
-                "think=$thinking tool=$tool text=$text")
+                "think=$thinking tool=$tool text=$text code=$codeFence table=$tableRow " +
+                "math=$mathBlock mermaid=$mermaid")
         }
         LaunchedEffect(activeId) {
             var lastLogged = -1
@@ -308,12 +323,13 @@ fun SessionView(
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
+            // 最新一轮判定基准只算一次，避免每个条目组合都整表扫描 visible。
+            val lastUserIdx = visible.indexOfLast { it is Message.User }
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()
                 .nestedScroll(remember { io.github.lijiahua1024.dsnative.ui.ScrollTracker("chat") }),
                 contentPadding = PaddingValues(bottom = 20.5.dp)) {
                 items(visible.size, key = { visible[it].id }, contentType = { if (visible[it] is Message.User) "user" else "assistant" }) { index ->
                     // 最新一轮：最后一条用户消息及其后所有回复。该轮内容默认展开；更早轮次默认折叠。
-                    val lastUserIdx = visible.indexOfLast { it is Message.User }
                     val isLatestTurn = lastUserIdx >= 0 && index >= lastUserIdx
                     when (val msg = visible[index]) {
                         is Message.User -> {
