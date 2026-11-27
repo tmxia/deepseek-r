@@ -516,14 +516,14 @@ private fun RenderBlock(
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                                 .background(c.buttonElevatedFill)
                                 .clickable { collapsed = !collapsed }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             androidx.compose.material3.Icon(
                                 androidx.compose.ui.res.painterResource(
                                     io.github.lijiahua1024.dsnative.R.drawable.ic_chevron_right),
                                 null, tint = c.labelSecondary,
-                                modifier = Modifier.size(16.dp).rotate(if (collapsed) 90f else 270f),
+                                modifier = Modifier.size(14.dp).rotate(if (collapsed) 90f else 270f),
                             )
                         }
                     }

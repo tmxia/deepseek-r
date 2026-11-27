@@ -759,6 +759,7 @@ private fun SettingsRow(
     val pressBg = if (c.dark) Color(0xFF303030) else Color(0xFFEBEBEB)
     Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
         .alpha(if (enabled) 1f else 0.5f)
+        .clip(RoundedCornerShape(12.dp))
         .background(if (pressed && enabled) DsTheme.pressTint(pressed, pressBg) else Color.Transparent)
         .combinedClickable(src, null, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
         .padding(start = 16.dp, end = 12.dp),
@@ -1167,7 +1168,7 @@ private fun DataPage(
                         val checked = importMode == m
                         Row(
                             Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(if (checked) c.interactiveBgHover else Color.Transparent)
                                 .clickable { importMode = m }
                                 .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -1426,16 +1427,16 @@ private fun FontPanel(c: io.github.lijiahua1024.dsnative.theme.DsColors, card: C
     }
 }
 
-// ref .switch: 52x32 track, #e4e4e4 off / #22c55e on, 24px white thumb 4px inset
+// ref .switch: 紧凑轨道 40x22，#e4e4e4 off / #22c55e on，18px 白色 thumb 2px inset
 @Composable
 private fun RefSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val frac by androidx.compose.animation.core.animateFloatAsState(if (checked) 1f else 0f, label = "switch")
-    Box(Modifier.size(52.dp, 32.dp).clip(RoundedCornerShape(20.dp))
+    Box(Modifier.size(40.dp, 22.dp).clip(RoundedCornerShape(11.dp))
         .background(if (frac >= 0.5f) Color(0xFF22C55E) else Color(0xFFE4E4E4))
         .clickable { onCheckedChange(!checked) }) {
-        Box(Modifier.padding(start = 4.dp, top = 4.dp)
-            .graphicsLayer { translationX = (20f * frac).dp.toPx() }
-            .size(24.dp).clip(RoundedCornerShape(50)).background(Color.White))
+        Box(Modifier.padding(start = 2.dp, top = 2.dp)
+            .graphicsLayer { translationX = (18f * frac).dp.toPx() }
+            .size(18.dp).clip(RoundedCornerShape(50)).background(Color.White))
     }
 }
 
@@ -1533,6 +1534,8 @@ private fun ChoicePopup(
                     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                     val pressed by src.collectIsPressedAsState()
                     Row(Modifier.fillMaxWidth().height(60.dp)
+                        .padding(horizontal = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(when {
                             checked -> c.interactiveBgHover
                             pressed -> DsTheme.pressTint(pressed, pressBg)
@@ -1556,6 +1559,8 @@ private fun ChoicePopup(
             val confirmSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             val confirmPressed by confirmSrc.collectIsPressedAsState()
             Box(Modifier.fillMaxWidth().height(54.dp)
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(12.dp))
                 .background(if (confirmPressed) DsTheme.pressTint(confirmPressed, pressBg)
                     else Color.Transparent)
                 .clickable(interactionSource = confirmSrc, indication = null)
