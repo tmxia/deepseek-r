@@ -210,6 +210,49 @@ fun SessionView(
                 msg.id
             } else null
         }
+        // ---- 聊天区性能指标：帧卡顿采样 + 会话/滚动结构日志（仅调试模式写入）----
+        DisposableEffect(activeId) {
+            PerfMonitor.start()
+            onDispose { PerfMonitor.stop() }
+        }
+        LaunchedEffect(activeId) {
+            while (true) {
+                kotlinx.coroutines.delay(5000)
+                PerfMonitor.snapshot("perf")
+            }
+        }
+        LaunchedEffect(activeId, visible.size) {
+            if (!DebugLog.enabled) return@LaunchedEffect
+            var user = 0
+            var assistant = 0
+            var chars = 0
+            var files = 0
+            for (m in visible) when (m) {
+                is Message.User -> { user++; chars += m.content.length; files += m.files.size }
+                is Message.Assistant -> { assistant++; chars += replyText(m).length }
+            }
+            DebugLog.log("perf", "session=${activeId ?: "new"} msgs=${visible.size} " +
+                "user=$user assistant=$assistant chars=$chars files=$files")
+        }
+        LaunchedEffect(activeId) {
+            var lastLogged = -1
+            snapshotFlow {
+                val info = listState.layoutInfo
+                Triple(
+                    info.totalItemsCount,
+                    info.visibleItemsInfo.firstOrNull()?.index ?: -1,
+                    info.visibleItemsInfo.lastOrNull()?.index ?: -1,
+                )
+            }.collect { (total, first, last) ->
+                kotlinx.coroutines.delay(700)
+                if (!DebugLog.enabled) return@collect
+                val key = first * 1000 + last
+                if (key != lastLogged) {
+                    lastLogged = key
+                    DebugLog.log("perf", "scroll total=$total visible=$first..$last")
+                }
+            }
+        }
         if (visible.isEmpty()) {
             Welcome(
                 Modifier.weight(1f),

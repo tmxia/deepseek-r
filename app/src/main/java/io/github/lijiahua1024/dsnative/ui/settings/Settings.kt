@@ -664,32 +664,22 @@ private fun SettingsRootPage(
     }
     if (showLogDialog) {
         val logText = remember(showLogDialog) { DebugLog.all().takeLast(400).joinToString("\n") }
-        AlertDialog(
-            onDismissRequest = { showLogDialog = false },
-            title = { Text(Strings.get("debugLogTitle")) },
-            text = {
-                Box(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(logText.ifEmpty { Strings.get("debugLogEmpty") },
-                        fontSize = 12.sp, lineHeight = 18.sp, color = c.labelPrimary)
-                }
-            },
-            confirmButton = { TextButton(onClick = { showLogDialog = false }) { Text(Strings.get("close")) } },
+        DsLogDialog(
+            title = Strings.get("debugLogTitle"),
+            text = logText,
+            emptyHint = Strings.get("debugLogEmpty"),
+            onDismiss = { showLogDialog = false },
         )
     }
     if (showCrashDialog) {
         val crashText = remember(showCrashDialog) {
             CrashLog.readAll().lines().takeLast(400).joinToString("\n")
         }
-        AlertDialog(
-            onDismissRequest = { showCrashDialog = false },
-            title = { Text(Strings.get("debugCrashView")) },
-            text = {
-                Box(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(crashText.ifEmpty { Strings.get("debugCrashEmpty") },
-                        fontSize = 12.sp, lineHeight = 18.sp, color = c.labelPrimary)
-                }
-            },
-            confirmButton = { TextButton(onClick = { showCrashDialog = false }) { Text(Strings.get("close")) } },
+        DsLogDialog(
+            title = Strings.get("debugCrashView"),
+            text = crashText,
+            emptyHint = Strings.get("debugCrashEmpty"),
+            onDismiss = { showCrashDialog = false },
         )
     }
 }
@@ -1733,6 +1723,59 @@ private fun VoiceSheet(
                     .height(48.dp).clip(RoundedCornerShape(28.dp)).background(c.brandText)
                     .clickable { dismissAnimated { onConfirm(tone) } }
                     .wrapContentHeight(Alignment.CenterVertically))
+        }
+    }
+}
+
+@Composable
+private fun DsLogDialog(
+    title: String,
+    text: String,
+    emptyHint: String,
+    onDismiss: () -> Unit,
+) {
+    val c = DsTheme.colors
+    val ov = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) { ov.animateTo(1f, androidx.compose.animation.core.tween(160)) }
+    val cardBg = if (c.dark) Color(0xFF292929) else Color.White
+    val cancelBg = if (c.dark) Color(0xFF3A3A3D) else Color(0xFFF3F3F4)
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.48f * ov.value))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier.padding(horizontal = 32.dp)
+                .widthIn(max = 320.dp).fillMaxWidth()
+                .heightIn(max = 560.dp)
+                .graphicsLayer { alpha = ov.value }
+                .clip(RoundedCornerShape(24.dp))
+                .background(cardBg)
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+        ) {
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Medium, color = c.labelPrimary)
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Text(
+                    text.ifEmpty { emptyHint },
+                    fontSize = 12.sp, lineHeight = 18.sp, color = c.labelSecondary,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Box(
+                Modifier.fillMaxWidth().height(44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(cancelBg)
+                    .clickable(onClick = onDismiss),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(Strings.get("close"), fontSize = 16.sp, color = c.labelPrimary)
+            }
         }
     }
 }
