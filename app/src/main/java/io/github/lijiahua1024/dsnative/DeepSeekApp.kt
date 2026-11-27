@@ -20,6 +20,7 @@ class DeepSeekApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        io.github.lijiahua1024.dsnative.data.CrashLog.install(this)
         ApiOrigin.init(applicationContext)
         settings = SettingsStore(applicationContext)
         chatStore = ChatStore(applicationContext, settings, appScope)

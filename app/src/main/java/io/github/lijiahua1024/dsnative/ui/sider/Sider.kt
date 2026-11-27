@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import io.github.lijiahua1024.dsnative.theme.dsPainterResource as painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -895,7 +896,6 @@ private fun SiderRow(s: SessionSummary, active: Boolean, selectionMode: Boolean,
             }
         }
     }
-}
 }
 
 // .option: flex, gap 8, padding 8px 10px, r8, 14/24; .danger -> error color

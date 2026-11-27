@@ -95,15 +95,21 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    // 发送成功后主动收起键盘、清焦点，便于直接看到回复结果。
+    val holdScope = androidx.compose.runtime.rememberCoroutineScope()
+    // 发送成功后收起键盘、清焦点。延后到下一帧：sendMessage 可能新建会话并改 activeId，
+    // 先让状态迁移与重组落定，避免在焦点树迁移的同帧操作失效节点；runCatching 兜底。
     val sendDraftAndHide: (String) -> Unit = { draft ->
         chatStore.setDraft(activeId, draft)
         chatStore.sendMessage(activeId)
         text = ""
-        focusManager.clearFocus()
-        keyboardController?.hide()
+        holdScope.launch {
+            withFrameNanos { }
+            runCatching {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+            }
+        }
     }
-    val holdScope = androidx.compose.runtime.rememberCoroutineScope()
     val thinking by settings.thinking.collectAsState()
     val search by settings.search.collectAsState()
     val isStreaming by remember(chatStore, activeId) {
