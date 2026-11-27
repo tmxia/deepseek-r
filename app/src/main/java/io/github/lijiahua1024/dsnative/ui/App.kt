@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.*
@@ -457,25 +456,6 @@ fun DrawerFrame(
                         translationX = mainOffsetX
                     }
             ) {
-                if (!dark && drawerVisible) {
-                    // Pure GPU gradient edge shadow (avoids per-frame full-screen BlurMaskFilter under changing scale).
-                    val edgeShadowBrush = remember {
-                        androidx.compose.ui.graphics.Brush.horizontalGradient(
-                            0.0f to Color.Transparent,
-                            0.35f to Color.Black.copy(alpha = 0.008f),
-                            0.68f to Color.Black.copy(alpha = 0.028f),
-                            1.0f to Color.Black.copy(alpha = 0.068f),
-                        )
-                    }
-                    Box(
-                        Modifier
-                            .width(24.dp)
-                            .fillMaxHeight()
-                            .offset(x = (-24).dp)
-                            .graphicsLayer { alpha = progress }
-                            .background(edgeShadowBrush)
-                    )
-                }
                 Box(
                     Modifier
                         .fillMaxSize()
