@@ -177,6 +177,7 @@ fun SessionView(
         }
 
         val visible = remember(session) { session?.let { visibleMessages(it) } ?: emptyList() }
+        val curVisible by rememberUpdatedState(visible)
         val siblingIdsByParent = remember(session?.messages) {
             val msgs = session?.messages ?: return@remember emptyMap()
             val map = HashMap<String?, MutableList<String>>()
@@ -222,6 +223,16 @@ fun SessionView(
             while (true) {
                 kotlinx.coroutines.delay(5000)
                 PerfMonitor.snapshot("perf")
+                if (DebugLog.enabled) {
+                    val last = curVisible.lastOrNull()
+                    val lastKind = when (last) {
+                        is Message.User -> "user"
+                        is Message.Assistant -> last.status.name
+                        null -> "none"
+                    }
+                    DebugLog.log("perf", "ctx visible=${curVisible.size} " +
+                        "streaming=${streaming.isNotEmpty()} last=$lastKind")
+                }
             }
         }
         LaunchedEffect(activeId, visible.size) {
