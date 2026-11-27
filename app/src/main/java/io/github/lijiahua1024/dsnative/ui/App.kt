@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
@@ -86,6 +87,10 @@ fun App(settings: SettingsStore, chatStore: ChatStore) {
                 isAppearanceLightStatusBars = !dark
                 isAppearanceLightNavigationBars = !dark
             }
+            // 窗口底色跟随应用生效主题，而不是跟随系统 uiMode 的默认窗底。
+            // 否则应用强制深色、系统浅色时，设置页进出转场的半透明层会透出
+            // 默认白底，形成一帧浅色闪屏；强制浅色、系统深色时同理透出黑底。
+            w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(colors.bgBase.toArgb()))
         }
     }
 
@@ -116,7 +121,7 @@ fun App(settings: SettingsStore, chatStore: ChatStore) {
             }.distinctUntilChanged()
         }.collectAsState(initial = true)
         val freePan = nav == NavState.Chat && isCurrentSessionEmpty
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(DsTheme.colors.bgBase)) {
             val settingsScope = rememberCoroutineScope()
             val settingsCtrl = remember {
                 TwoPhaseController(if (nav == NavState.Settings) "settings" else "chat", settingsScope) { settled ->

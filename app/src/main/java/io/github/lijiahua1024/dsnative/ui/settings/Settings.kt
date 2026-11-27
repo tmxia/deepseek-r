@@ -222,7 +222,7 @@ fun AndroidSettings(
         }
     }
 
-    val bg = if (c.dark) Color(0xFF1E1E1E) else Color(0xFFF8F8F8)
+    val bg = if (c.dark) c.bgBase else Color(0xFFF8F8F8)
     val card = if (c.dark) Color(0xFF292929) else Color(0xFFFFFFFF)
     val muted = if (c.dark) Color(0xFF8E9094) else Color(0xFF8C9097)
     val btnBg = if (c.dark) Color(0xFF3C3C3D) else Color(0xFFEDEDED)
@@ -756,11 +756,10 @@ private fun SettingsRow(
     // ref button.row:active/a.row:active -> background: var(--settings-button)
     val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val pressBg = if (c.dark) Color(0xFF303030) else Color(0xFFEBEBEB)
     Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp)
         .alpha(if (enabled) 1f else 0.5f)
         .clip(RoundedCornerShape(12.dp))
-        .background(if (pressed && enabled) DsTheme.pressTint(pressed, pressBg) else Color.Transparent)
+        .background(if (pressed && enabled) DsTheme.pressTint(pressed, c.interactiveBgHover) else Color.Transparent)
         .combinedClickable(src, null, enabled = enabled, onClick = onClick, onLongClick = onLongClick)
         .padding(start = 16.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically) {
@@ -1467,8 +1466,6 @@ private fun ChoicePopup(
     onDismiss: () -> Unit,
 ) {
     var next by remember { mutableStateOf(selected) }
-    // 与 SettingsRow 一致的按压底色：浅色 #EBEBEB / 深色 #303030。
-    val pressBg = if (c.dark) Color(0xFF303030) else Color(0xFFEBEBEB)
     val ov = remember { androidx.compose.animation.core.Animatable(0f) }
     val scope = rememberCoroutineScope()
     var closing by remember { mutableStateOf(false) }
@@ -1538,7 +1535,7 @@ private fun ChoicePopup(
                         .clip(RoundedCornerShape(12.dp))
                         .background(when {
                             checked -> c.interactiveBgHover
-                            pressed -> DsTheme.pressTint(pressed, pressBg)
+                            pressed -> DsTheme.pressTint(pressed, c.interactiveBgHover)
                             else -> Color.Transparent
                         })
                         .clickable(interactionSource = src, indication = null) { next = id }
@@ -1561,7 +1558,7 @@ private fun ChoicePopup(
             Box(Modifier.fillMaxWidth().height(54.dp)
                 .padding(horizontal = 8.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (confirmPressed) DsTheme.pressTint(confirmPressed, pressBg)
+                .background(if (confirmPressed) DsTheme.pressTint(confirmPressed, c.interactiveBgHoverAccent)
                     else Color.Transparent)
                 .clickable(interactionSource = confirmSrc, indication = null)
                 { dismissAnimated { onConfirm(next) } }, contentAlignment = Alignment.Center) {
