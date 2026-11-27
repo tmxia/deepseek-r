@@ -1779,11 +1779,14 @@ private fun DsLogDialog(
             }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val copySrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val copyPressed by copySrc.collectIsPressedAsState()
                 Box(
                     Modifier.weight(1f).height(44.dp)
                         .clip(RoundedCornerShape(22.dp))
                         .background(cancelBg)
-                        .clickable {
+                        .background(DsTheme.pressTint(copyPressed, c.interactiveBgHover))
+                        .clickable(interactionSource = copySrc, indication = null) {
                             val cb = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
                                 as android.content.ClipboardManager
                             cb.setPrimaryClip(android.content.ClipData.newPlainText("log", text))
@@ -1793,11 +1796,14 @@ private fun DsLogDialog(
                 ) {
                     Text(Strings.get("copy"), fontSize = 16.sp, color = c.labelPrimary)
                 }
+                val closeSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val closePressed by closeSrc.collectIsPressedAsState()
                 Box(
                     Modifier.weight(1f).height(44.dp)
                         .clip(RoundedCornerShape(22.dp))
                         .background(cancelBg)
-                        .clickable(onClick = onDismiss),
+                        .background(DsTheme.pressTint(closePressed, c.interactiveBgHover))
+                        .clickable(interactionSource = closeSrc, indication = null, onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(Strings.get("close"), fontSize = 16.sp, color = c.labelPrimary)
@@ -1888,23 +1894,30 @@ private fun DsConfirmDialog(
                     content()
                 }
                 Spacer(Modifier.height(20.dp))
+                val confirmSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val confirmPressed by confirmSrc.collectIsPressedAsState()
+                val confirmOverlay = if (danger) c.interactiveBgHoverDanger else c.interactiveBgHoverAccent
                 Box(
                     Modifier.fillMaxWidth()
                         .height(48.dp)
                         .clip(RoundedCornerShape(24.dp))
                         .background(confirmFill)
-                        .clickable { dismissAnimated(onConfirm) },
+                        .background(DsTheme.pressTint(confirmPressed, confirmOverlay))
+                        .clickable(interactionSource = confirmSrc, indication = null) { dismissAnimated(onConfirm) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(confirmText, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color.White)
                 }
                 Spacer(Modifier.height(8.dp))
+                val cancelSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val cancelPressed by cancelSrc.collectIsPressedAsState()
                 Box(
                     Modifier.fillMaxWidth()
                         .height(48.dp)
                         .clip(RoundedCornerShape(24.dp))
                         .background(cancelBg)
-                        .clickable { dismissAnimated() },
+                        .background(DsTheme.pressTint(cancelPressed, c.interactiveBgHover))
+                        .clickable(interactionSource = cancelSrc, indication = null) { dismissAnimated() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(cancelText, fontSize = 16.sp, color = c.labelPrimary)
