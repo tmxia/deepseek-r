@@ -281,7 +281,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
     }
     var previousKeyboardOpen by remember { mutableStateOf(false) }
     LaunchedEffect(keyboardOpen) {
-        DebugLog.log("input", "keyboardOpen=$keyboardOpen prev=$previousKeyboardOpen focused=$focused")
+        DebugLog.log("input", "keyboardOpen=$keyboardOpen prev=$previousKeyboardOpen focused=$focused imeBottom=${imeInsets.getBottom(density)}")
         if (previousKeyboardOpen && !keyboardOpen && focused) focusManager.clearFocus()
         previousKeyboardOpen = keyboardOpen
     }

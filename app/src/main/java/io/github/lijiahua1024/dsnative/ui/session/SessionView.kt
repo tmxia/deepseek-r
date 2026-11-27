@@ -335,7 +335,9 @@ fun SessionView(
                 var lastPos = 0
                 snapshotFlow { listState.firstVisibleItemIndex * 100000 + listState.firstVisibleItemScrollOffset }
                     .collect { pos ->
-                        sticky = if (nearBottom) true else if (pos < lastPos) false else sticky
+                        val next = if (nearBottom) true else if (pos < lastPos) false else sticky
+                        if (next != sticky) DebugLog.log("view", "sticky=$next first=${listState.firstVisibleItemIndex} off=${listState.firstVisibleItemScrollOffset} nearBottom=$nearBottom")
+                        sticky = next
                         lastPos = pos
                     }
             }
@@ -359,9 +361,11 @@ fun SessionView(
                         if (lastVis != null && lastVis.index == size - 1 && info.totalItemsCount == size) {
                             val overflow = (lastVis.offset + lastVis.size - info.viewportEndOffset) + info.afterContentPadding
                             if (overflow > 2) {
+                                DebugLog.log("view", "follow rawDelta overflow=${overflow.toInt()} size=$size first=${listState.firstVisibleItemIndex} off=${listState.firstVisibleItemScrollOffset} vEnd=${info.viewportEndOffset}")
                                 listState.dispatchRawDelta(overflow.toFloat())
                             }
                         } else {
+                            DebugLog.log("view", "follow scrollToItem size=$size first=${listState.firstVisibleItemIndex} off=${listState.firstVisibleItemScrollOffset} vEnd=${info.viewportEndOffset}")
                             listState.scrollToItem(size - 1, Int.MAX_VALUE)
                         }
                     }
