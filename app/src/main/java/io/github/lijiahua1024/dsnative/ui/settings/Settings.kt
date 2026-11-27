@@ -49,7 +49,9 @@ import io.github.lijiahua1024.dsnative.api.verifyApiKey
 import io.github.lijiahua1024.dsnative.api.AccountBalance
 import io.github.lijiahua1024.dsnative.api.ApiError
 import io.github.lijiahua1024.dsnative.api.balanceCurrencySymbol
+import io.github.lijiahua1024.dsnative.api.cacheAccountBalance
 import io.github.lijiahua1024.dsnative.api.fetchAccountBalance
+import io.github.lijiahua1024.dsnative.api.lastCachedBalance
 import io.github.lijiahua1024.dsnative.data.ChatStore
 import io.github.lijiahua1024.dsnative.data.DebugLog
 import io.github.lijiahua1024.dsnative.data.SettingsStore
@@ -567,6 +569,8 @@ private fun SettingsRootPage(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var showLogDialog by remember { mutableStateOf(false) }
+    // 清空日志后驱动「查看日志」计数立即重算，避免仍显示旧条数。
+    var logNonce by remember { mutableStateOf(0) }
     val exportLogLauncher = rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
     ) { uri ->
@@ -626,14 +630,16 @@ private fun SettingsRootPage(
             { Icon(painterResource(R.drawable.ic_doc_edit), null, tint = c.labelPrimary, modifier = Modifier.size(20.dp)) }) { onPage("agreements") }
     }
     if (debugMode) {
+        val logCount = run { logNonce; DebugLog.size() }
         SettingsGroup(Strings.get("debugLogTitle"), card, muted) {
             SettingsRow(c, muted, Strings.get("debugLogView"),
-                value = "${DebugLog.size()}", arrow = false) { showLogDialog = true }
+                value = "$logCount", arrow = false) { showLogDialog = true }
             SettingsRow(c, muted, Strings.get("debugLogExport"), arrow = false) {
                 exportLogLauncher.launch("dsnative-debug-${System.currentTimeMillis()}.log")
             }
             SettingsRow(c, muted, Strings.get("debugLogClear"), danger = true, arrow = false) {
                 DebugLog.clear()
+                logNonce++
                 DsToast.show(Strings.get("debugLogCleared"))
             }
         }
@@ -775,7 +781,7 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
     // ref useAccountBalance：进入账号页自动查询已保存 Key 余额；后台静默刷新保留旧值，避免区域跳闪。
     val apiKey by settings.apiKey.collectAsState()
     var balanceNonce by remember { mutableStateOf(0) }
-    var balanceData by remember(apiKey) { mutableStateOf<AccountBalance?>(null) }
+    var balanceData by remember(apiKey) { mutableStateOf(lastCachedBalance(apiKey)) }
     var balanceLoading by remember(apiKey) { mutableStateOf(false) }
     var balanceRefreshing by remember(apiKey) { mutableStateOf(false) }
     var balanceError by remember(apiKey) { mutableStateOf<String?>(null) }
@@ -789,6 +795,7 @@ private fun AccountPage(c: io.github.lijiahua1024.dsnative.theme.DsColors, card:
         if (hadData) { balanceRefreshing = true; balanceError = null } else balanceLoading = true
         try {
             balanceData = fetchAccountBalance(key)
+            cacheAccountBalance(key, balanceData)
             balanceLoading = false; balanceRefreshing = false; balanceError = null
         } catch (e: Exception) {
             balanceLoading = false; balanceRefreshing = false

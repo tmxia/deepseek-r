@@ -61,3 +61,20 @@ fun balanceCurrencySymbol(currency: String?): String = when (currency) {
     "USD" -> "$"
     else -> ""
 }
+
+/**
+ * 进程内最近一次成功查询的账号余额快照（按 API Key 隔离）。
+ * 重新进入账号页时先用快照填充，后台静默刷新，避免先显示「查询中」占位再跳变造成的跳闪。
+ */
+@Volatile
+private var cachedKey: String? = null
+@Volatile
+private var cachedBalance: AccountBalance? = null
+
+internal fun lastCachedBalance(apiKey: String?): AccountBalance? =
+    if (!apiKey.isNullOrEmpty() && cachedKey == apiKey) cachedBalance else null
+
+internal fun cacheAccountBalance(apiKey: String?, balance: AccountBalance?) {
+    cachedKey = apiKey
+    cachedBalance = balance
+}

@@ -284,6 +284,7 @@ object Strings {
             "debugLogClear" -> pick("清空日志", "Clear log")
             "debugLogEmpty" -> pick("暂无日志", "No log entries")
             "debugLogExported" -> pick("日志已导出", "Log exported")
+            "debugLogCleared" -> pick("日志已清空", "Log cleared")
             "debugModeOn" -> pick("调试模式已开启", "Debug mode enabled")
             "debugModeOff" -> pick("调试模式已关闭", "Debug mode disabled")
             "dataCaptionA" -> pick("历史对话保存在此设备。API 数据处理适用 ", "Chat history is stored on this device. API usage is subject to the ")
