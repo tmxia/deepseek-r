@@ -879,31 +879,15 @@ fun UserBubble(
             // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
             // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
-            // 折叠/展开改变气泡高度后请求一次视口跟随：把本条气泡（含折叠按钮）保持在可见区内，
-            // 避免高度收回后底部留白、或展开后内容/按钮被推出视口。
-            var adjustRequested by remember(msg.id) { mutableStateOf(false) }
+            // 折叠/展开改变气泡高度后请求一次锚顶跟随：等新布局落地（onSizeChanged 信号）再
+            // 校正，避免在旧几何上推量造成首帧跳动。口径见 [followItemTopVisible]。
+            var followRequested by remember(msg.id) { mutableStateOf(false) }
+            var bubblePending by remember(msg.id) { mutableStateOf(false) }
             val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
-            LaunchedEffect(adjustRequested) {
-                if (!adjustRequested) return@LaunchedEffect
-                androidx.compose.runtime.withFrameNanos { }
-                val info = listState.layoutInfo
-                val item = info.visibleItemsInfo.firstOrNull { it.index == itemIndex }
-                if (item != null) {
-                    val margin = followMarginPx
-                    val top = item.offset
-                    val bottom = item.offset + item.size
-                    val viewBottom = info.viewportEndOffset
-                    var delta = 0f
-                    if (bottom > viewBottom - margin) {
-                        // 底部越界：内容上移收回视口（dispatchRawDelta 正值方向，贴底跟随同口径）。
-                        delta = (bottom - (viewBottom - margin)).toFloat()
-                    } else if (top < margin) {
-                        // 顶部越界：内容下移放出视口。
-                        delta = (top - margin).toFloat()
-                    }
-                    if (kotlin.math.abs(delta) > 0.5f) listState.dispatchRawDelta(delta)
-                }
-                adjustRequested = false
+            LaunchedEffect(followRequested) {
+                if (!followRequested) return@LaunchedEffect
+                followRequested = false
+                listState.followItemTopVisible(itemIndex, followMarginPx)
             }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
@@ -916,6 +900,9 @@ fun UserBubble(
                     Box(
                         Modifier
                             .onPlaced { coordsRef.coords = it }
+                            // 高度落地信号：折叠/展开新高度 place 完成后才置位跟随请求，
+                            // 供补偿 effect 读到新几何，避免首帧按旧高度推量跳动。
+                            .onSizeChanged { if (bubblePending) { bubblePending = false; followRequested = true } }
                             // 仅挂长按检测器弹菜单，不注册 tap 检测器；与折叠按钮 clickable 互不竞争
                             // （对齐 Web：气泡本体只响应长按 contextmenu，折叠按钮 stopPropagation）。
                             .pointerInput(msg.id) {
@@ -949,7 +936,7 @@ fun UserBubble(
                                         indication = null,
                                     ) {
                                         collapsed = !collapsed
-                                        adjustRequested = true
+                                        bubblePending = true
                                     }
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center,

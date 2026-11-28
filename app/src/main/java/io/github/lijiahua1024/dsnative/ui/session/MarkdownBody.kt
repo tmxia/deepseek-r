@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -357,29 +358,16 @@ fun MarkdownBody(
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
-    // 代码块折叠/展开改变整条消息高度后，请求一次外层视口跟随：把本条消息保持在可见区内。
-    var adjustRequested by remember(itemIndex) { mutableStateOf(false) }
+    // 代码块折叠/展开改变整条消息高度后，请求一次锚顶跟随：等新布局落地再校正，避免在旧几何
+    // 上推量造成首帧跳动。口径见 [followItemTopVisible]。
+    var followRequested by remember(itemIndex) { mutableStateOf(false) }
     val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
-    LaunchedEffect(adjustRequested) {
-        if (!adjustRequested) return@LaunchedEffect
-        androidx.compose.runtime.withFrameNanos { }
-        val info = listState.layoutInfo
-        val item = info.visibleItemsInfo.firstOrNull { it.index == itemIndex }
-        if (item != null) {
-            val top = item.offset
-            val bottom = item.offset + item.size
-            val viewBottom = info.viewportEndOffset
-            var delta = 0f
-            if (bottom > viewBottom - followMarginPx) {
-                delta = (bottom - (viewBottom - followMarginPx)).toFloat()
-            } else if (top < followMarginPx) {
-                delta = (top - followMarginPx).toFloat()
-            }
-            if (kotlin.math.abs(delta) > 0.5f) listState.dispatchRawDelta(delta)
-        }
-        adjustRequested = false
+    LaunchedEffect(followRequested) {
+        if (!followRequested) return@LaunchedEffect
+        followRequested = false
+        listState.followItemTopVisible(itemIndex, followMarginPx)
     }
-    val followRequestor = remember(itemIndex) { ViewportFollowRequestor { adjustRequested = true } }
+    val followRequestor = remember(itemIndex) { ViewportFollowRequestor { followRequested = true } }
     val content: @Composable () -> Unit = {
         Column(modifier) {
             parsedChunks.forEachIndexed { chunkIdx, chunk ->
@@ -542,12 +530,15 @@ private fun RenderBlock(
                 // 键，代码流式增长或状态翻转都不会丢弃手动选择。
                 var collapsed by remember { mutableStateOf(!fresh) }
                 val followRequest = LocalViewportFollow.current?.request
+                // 高度落地信号：折叠/展开新高度 place 完成后才上抛跟随请求，避免补偿读到旧几何。
+                var codePending by remember { mutableStateOf(false) }
                 // ref CodeBlock <pre>：white-space pre-wrap + overflow-wrap anywhere，
                 // 长行在容器宽度内自动换行；不做横向滚动，避免折叠/展开间 intrinsic
                 // 宽度与滚动状态重算导致的布局跳闪。
                 Box(
                     Modifier.fillMaxWidth()
                         .background(c.markdownCodeBlockBanner)
+                        .onSizeChanged { if (codePending) { codePending = false; followRequest?.invoke() } }
                 ) {
                     // 折叠态只对可见的前 5 行做高亮，避免长代码块首挂即对全量文本跑正则；展开后再全量高亮。
                     val highlightSource = if (needsFold && collapsed) {
@@ -585,7 +576,7 @@ private fun RenderBlock(
                                 .background(c.buttonElevatedFill)
                                 .clickable {
                                     collapsed = !collapsed
-                                    followRequest?.invoke()
+                                    codePending = true
                                 }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
