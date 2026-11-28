@@ -893,7 +893,13 @@ private fun RenderTable(
     mathTokens: Map<Int, ExtractedMathToken> = emptyMap(),
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val data = remember(table) { collectTableData(table) }
+    val data = remember(table) {
+        val t0 = System.nanoTime()
+        val d = collectTableData(table)
+        FrameTrace.record("tableParse", System.nanoTime() - t0,
+            "rows=${d.headerRows.size + d.bodyRows.size}")
+        d
+    }
     var showFullscreen by remember { mutableStateOf(false) }
 
     val cardBg = if (c.dark) c.markdownCodeBlock else Color(0xFFFAFAFA)

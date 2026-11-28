@@ -4,6 +4,7 @@ import io.github.lijiahua1024.dsnative.data.ReplyBlock
 import io.github.lijiahua1024.dsnative.ui.session.ToolStatus
 import io.github.lijiahua1024.dsnative.ui.session.ToolStep
 import io.github.lijiahua1024.dsnative.ui.session.searchSources
+import io.github.lijiahua1024.dsnative.ui.session.toolByIdMap
 import io.github.lijiahua1024.dsnative.ui.session.toolStep
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
@@ -70,12 +71,12 @@ class SourcesParsingTest {
         assertEquals(2, sources.size)
         assertEquals("https://www.example.com/favicon.ico", sources[0].siteIcon)
 
-        val step1 = toolStep(blocks[0] as ReplyBlock.Tool, blocks, sources, streaming = false) as ToolStep.Search
+        val step1 = toolStep(blocks[0] as ReplyBlock.Tool, toolByIdMap(blocks), sources, streaming = false) as ToolStep.Search
         assertEquals(ToolStatus.DONE, step1.status)
         assertEquals("image_search", step1.kind)
         assertEquals(1, step1.sources.size)
 
-        val step2 = toolStep(blocks[2] as ReplyBlock.Tool, blocks, sources, streaming = false) as ToolStep.Search
+        val step2 = toolStep(blocks[2] as ReplyBlock.Tool, toolByIdMap(blocks), sources, streaming = false) as ToolStep.Search
         assertEquals(ToolStatus.DONE, step2.status)
         assertEquals("deep_image_search", step2.kind)
         assertEquals(listOf("q1", "q2"), step2.queries)
@@ -103,7 +104,7 @@ class SourcesParsingTest {
             }
         })
         val blocks = listOf(use, res)
-        val step = toolStep(use, blocks, searchSources(blocks), streaming = false) as ToolStep.Search
+        val step = toolStep(use, toolByIdMap(blocks), searchSources(blocks), streaming = false) as ToolStep.Search
         assertEquals(ToolStatus.FAILED, step.status)
         assertTrue(step.sources.isEmpty())
     }
@@ -119,7 +120,7 @@ class SourcesParsingTest {
                 put("url", "https://example.org/doc")
             }
         })
-        val wipStep = toolStep(use, listOf(use), emptyList(), streaming = true) as ToolStep.ReadLink
+        val wipStep = toolStep(use, toolByIdMap(listOf(use)), emptyList(), streaming = true) as ToolStep.ReadLink
         assertEquals(ToolStatus.WIP, wipStep.status)
         assertEquals("https://example.org/doc", wipStep.url)
 
@@ -135,7 +136,7 @@ class SourcesParsingTest {
         })
         val doneBlocks = listOf(use, res)
         assertTrue(searchSources(doneBlocks).isEmpty())
-        val doneStep = toolStep(use, doneBlocks, emptyList(), streaming = false) as ToolStep.ReadLink
+        val doneStep = toolStep(use, toolByIdMap(doneBlocks), emptyList(), streaming = false) as ToolStep.ReadLink
         assertEquals(ToolStatus.DONE, doneStep.status)
         assertEquals("Doc Title", doneStep.title)
     }

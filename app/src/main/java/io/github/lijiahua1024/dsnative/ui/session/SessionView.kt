@@ -473,7 +473,8 @@ fun SessionView(
                         if (lastVis != null && lastVis.index == size - 1 && info.totalItemsCount == size) {
                             val overflow = (lastVis.offset + lastVis.size - info.viewportEndOffset) + info.afterContentPadding
                             if (overflow > 2) {
-                                FrameTrace.record("stickyRawDelta", 0L, "overflow=$overflow")
+                                // 耗时通道复用于记录单次跟随位移：快照 max 即最大单次溢出(px)，count 为触发次数。
+                                FrameTrace.record("stickyRawDelta", overflow.toLong(), "overflow=$overflow")
                                 listState.dispatchRawDelta(overflow.toFloat())
                             }
                         } else {
@@ -1243,6 +1244,8 @@ fun AssistantView(
     ) {
     CompositionLocalProvider(LocalSources provides sources) {
         val renderBlocks = remember(msg.blocks, sources) { withCitationMarkers(msg.blocks, sources) }
+        // 工具块互查映射按整组 blocks 构建一次，避免每个 Tool 条目重组时全表扫描。
+        val toolById = remember(msg.blocks) { toolByIdMap(msg.blocks) }
         var prevWasStep = false
         for (block in renderBlocks) {
             when (block) {
@@ -1255,7 +1258,7 @@ fun AssistantView(
                     itemIndex = itemIndex)
                     .also { prevWasStep = false }
                 is ReplyBlock.Tool -> {
-                    val step = toolStep(block, msg.blocks, sources, msg.status == ReplyStatus.STREAMING)
+                    val step = toolStep(block, toolById, sources, msg.status == ReplyStatus.STREAMING)
                     when (step) {
                         is ToolStep.Search -> { SearchStepRow(step, openSources, stopped = msg.status == ReplyStatus.STOPPED); prevWasStep = true }
                         is ToolStep.Open -> { OpenStepRow(step, openSources); prevWasStep = true }

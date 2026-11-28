@@ -243,9 +243,15 @@ private fun toolStatus(status: String?): ToolStatus = when (status) {
     else -> ToolStatus.FAILED
 }
 
+/** 工具块互查映射：按整组 blocks 构建一次，供各 Tool 条目反查结果块，避免逐条全表扫描。 */
+internal fun toolByIdMap(blocks: List<ReplyBlock>): Map<String, JsonObject> =
+    blocks.filterIsInstance<ReplyBlock.Tool>()
+        .mapNotNull { t -> t.payload.str("tool_use_id")?.let { it to t.payload } }
+        .toMap()
+
 fun toolStep(
     block: ReplyBlock.Tool,
-    allBlocks: List<ReplyBlock>,
+    byId: Map<String, JsonObject>,
     registry: List<Source>,
     streaming: Boolean = true,
 ): ToolStep? {
@@ -254,12 +260,6 @@ fun toolStep(
     val input = p.obj("input") ?: return null
     val action = input.str("action") ?: ""
     val kind = p.str("kind") ?: action.ifEmpty { "search" }
-    val byId = HashMap<String, JsonObject>()
-    for (b in allBlocks) {
-        if (b !is ReplyBlock.Tool) continue
-        val r = b.payload
-        r.str("tool_use_id")?.let { byId[it] = r }
-    }
     val r = p.str("id")?.let { byId[it] }
     val isSearch = action in SEARCH_TOOL_NAMES || (action.isEmpty() && kind in SEARCH_TOOL_NAMES)
     if (isSearch) {
