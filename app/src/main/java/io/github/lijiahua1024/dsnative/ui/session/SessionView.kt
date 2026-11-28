@@ -1565,16 +1565,15 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                         Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
                             modifier = Modifier.size(14.dp).rotate(90f))
                     } else {
-                        // ref .previewIcon：上箭头朝上、下箭头朝下，14dp 紧凑堆叠（上游首项 rotate 180）
-                        Column(
-                            modifier = Modifier.height(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
-                                modifier = Modifier.size(10.dp).rotate(-90f))
-                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
-                                modifier = Modifier.size(10.dp).rotate(90f))
+                        // ref .previewIcon：14dp 容器内两个 down chevron；首项 top -4 rotate 180 成 ∧，
+                        // 次项 top +4 成 ∨，left 对齐，两箭头尖端在中部相对。
+                        Box(Modifier.size(14.dp)) {
+                            Icon(painterResource(R.drawable.ic_chevron_down_14), null, tint = c.thinkingDot,
+                                modifier = Modifier.align(Alignment.TopStart).size(14.dp)
+                                    .offset(y = (-4).dp).rotate(180f))
+                            Icon(painterResource(R.drawable.ic_chevron_down_14), null, tint = c.thinkingDot,
+                                modifier = Modifier.align(Alignment.TopStart).size(14.dp)
+                                    .offset(y = 4.dp))
                         }
                     }
                 }
