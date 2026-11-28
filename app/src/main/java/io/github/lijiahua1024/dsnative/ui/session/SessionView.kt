@@ -866,10 +866,10 @@ fun UserBubble(
         if (msg.content.isNotEmpty()) {
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
-            // 折叠规则：最新一轮（fresh）气泡强制展开，不提供折叠按钮，手动折叠态对最新轮
-            // 无效；更早的历史轮次默认自动折叠，用户手动切换后的折叠/展开选择仅在该历史
-            // 轮次内保留。key 纳入 fresh：轮次身份变化时重置为对应默认态，旧手动态不跨轮次生效。
-            var collapsed by rememberSaveable(msg.id, fresh) { mutableStateOf(!fresh) }
+            // 折叠规则：默认态按轮次——最新一轮（fresh）初始展开，更早历史轮次初始折叠。
+            // 折叠按钮对所有轮次都可用，用户可自由展开/收起；手动选择优先并跨重组/回收保留。
+            // key 只取消息 id：重发会生成全新消息 id，新气泡按自身轮次取默认态，不继承旧手动态。
+            var collapsed by rememberSaveable(msg.id) { mutableStateOf(!fresh) }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
@@ -891,13 +891,13 @@ fun UserBubble(
                         Text(
                             msg.content,
                             fontSize = 15.sp, lineHeight = 24.5.sp, fontWeight = FontWeight.Medium, color = c.labelPrimary,
-                            maxLines = if (!fresh && needsFold && collapsed) 4 else Int.MAX_VALUE,
+                            maxLines = if (needsFold && collapsed) 4 else Int.MAX_VALUE,
                             overflow = TextOverflow.Clip,
                         )
                     }
                     // ref .foldToggle：整行可点、右对齐；白色圆形纯图标按钮，方向随展开态翻转。
-                    // 仅历史轮次显示折叠按钮，最新一轮保持展开且不可折叠。
-                    if (needsFold && !fresh) {
+                    // 所有轮次均显示按钮，手动展开/收起自由切换，不被最新/历史轮次限制。
+                    if (needsFold) {
                         Row(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
