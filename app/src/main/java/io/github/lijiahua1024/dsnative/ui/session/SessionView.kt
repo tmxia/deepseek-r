@@ -224,6 +224,7 @@ fun SessionView(
             while (true) {
                 kotlinx.coroutines.delay(5000)
                 PerfMonitor.snapshot("perf")
+                FrameTrace.snapshot()
                 if (DebugLog.enabled) {
                     val last = curVisible.lastOrNull()
                     val lastKind = when (last) {
@@ -468,9 +469,11 @@ fun SessionView(
                         if (lastVis != null && lastVis.index == size - 1 && info.totalItemsCount == size) {
                             val overflow = (lastVis.offset + lastVis.size - info.viewportEndOffset) + info.afterContentPadding
                             if (overflow > 2) {
+                                FrameTrace.record("stickyRawDelta", 0L, "overflow=$overflow")
                                 listState.dispatchRawDelta(overflow.toFloat())
                             }
                         } else {
+                            FrameTrace.record("stickyJump", 0L, "last=${lastVis?.index}")
                             listState.scrollToItem(size - 1, Int.MAX_VALUE)
                         }
                     }

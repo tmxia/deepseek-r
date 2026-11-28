@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import io.github.lijiahua1024.dsnative.theme.Strings
 import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.theme.DsTheme
+import io.github.lijiahua1024.dsnative.data.FrameTrace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.commonmark.ext.autolink.AutolinkExtension
@@ -347,12 +348,20 @@ fun MarkdownBody(
     // 也沿用上一版后台 AST，不在主线程补一次整段重解析。
     var asyncChunks by remember { mutableStateOf<List<ParsedMarkdownChunk>?>(null) }
     LaunchedEffect(text) {
+        val t0 = System.nanoTime()
         val chunks = withContext(Dispatchers.Default) {
             splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
         }
+        FrameTrace.record("mdBgParse", System.nanoTime() - t0, "len=${text.length}")
         asyncChunks = chunks
     }
-    val parsedChunks = asyncChunks ?: splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
+    val parsedChunks = asyncChunks ?: run {
+        val t0 = System.nanoTime()
+        val chunks = splitMarkdownChunks(text).map(::getParsedMarkdownChunk)
+        FrameTrace.record("mdSyncParse", System.nanoTime() - t0,
+            "len=${text.length} chunks=${chunks.size}")
+        chunks
+    }
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
@@ -557,7 +566,13 @@ private fun RenderBlock(
                     val highlightedCode = if (streaming) {
                         androidx.compose.ui.text.AnnotatedString(trimmedCode)
                     } else {
-                        remember(highlightSource, c.dark, lang) { getHighlighted(highlightSource, c, lang) }
+                        remember(highlightSource, c.dark, lang) {
+                            val t0 = System.nanoTime()
+                            val h = getHighlighted(highlightSource, c, lang)
+                            FrameTrace.record("codeHighlight", System.nanoTime() - t0,
+                                "len=${highlightSource.length}")
+                            h
+                        }
                     }
                     Text(
                         highlightedCode,
