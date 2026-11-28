@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -110,20 +116,39 @@ fun MessageEditOverlay(
 ) {
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val enter = remember { androidx.compose.animation.core.Animatable(0f) }
     var closing by remember { mutableStateOf(false) }
     var backFrac by remember { mutableFloatStateOf(0f) }
+    var focused by remember { mutableStateOf(false) }
     val ease = remember { androidx.compose.animation.core.CubicBezierEasing(0.2f, 0.72f, 0.25f, 1f) }
     LaunchedEffect(Unit) { enter.animateTo(1f, androidx.compose.animation.core.tween(210, easing = ease)) }
+    // 键盘在浮层仍可见时被外部收起（后台返回 / 系统回收输入法），先撤离焦点，避免
+    // 残留输入连接在前台恢复时被系统重新挂起、再次把已收起的键盘顶起，面板随 inset
+    // 反复伸缩跳变。口径与主输入框键盘回落处理一致。
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val keyboardOpen by remember(density, imeInsets) {
+        derivedStateOf { imeInsets.getBottom(density) > 0 }
+    }
+    var previousKeyboardOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(keyboardOpen) {
+        if (previousKeyboardOpen && !keyboardOpen && focused) focusManager.clearFocus()
+        previousKeyboardOpen = keyboardOpen
+    }
     fun closeAnimated() {
         if (closing) return
         closing = true
-        keyboardController?.hide()
+        // 先断开输入连接，但不在退场首帧同步收起键盘：IME 收起的 inset 位移会与面板
+        // 退场动画（graphicsLayer 淡出 / 下滑）并行叠加，面板在两帧间被先后推拉形成
+        // 关闭跳闪。退场位移只由 layer 单一驱动；待面板透明后再收键盘并卸载。
+        focusManager.clearFocus()
         scope.launch {
             val s = (enter.value * (1f - backFrac * 0.45f)).coerceIn(0f, 1f)
             enter.snapTo(s)
             backFrac = 0f
             enter.animateTo(0f, androidx.compose.animation.core.tween(170, easing = ease))
+            runCatching { keyboardController?.hide() }
             onClose()
         }
     }
@@ -390,13 +415,24 @@ fun MessageEditOverlay(
                         autoCorrectEnabled = true,
                         capitalization = KeyboardCapitalization.Sentences,
                     ),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                    modifier = Modifier.fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focused = it.isFocused },
                 )
             }
             Row(
                 Modifier.fillMaxWidth().padding(start = 15.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Row(
+                    Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TogglePill(Strings.get("thinkingSwitch"), thinking, { settings.setThinking(!thinking) }, R.drawable.ic_think)
+                    TogglePill(Strings.get("search"), search, { settings.setSearch(!search) }, R.drawable.ic_globe)
+                }
+                Spacer(Modifier.width(6.dp))
                 val attSrc = remember { MutableInteractionSource() }
                 val attPressed by attSrc.collectIsPressedAsState()
                 Box(
@@ -413,16 +449,7 @@ fun MessageEditOverlay(
                             .background(DsTheme.pressTint(attPressed, c.interactiveBgHover)),
                     )
                 }
-                Spacer(Modifier.width(8.dp))
-                Row(
-                    Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    TogglePill(Strings.get("thinkingSwitch"), thinking, { settings.setThinking(!thinking) }, R.drawable.ic_think)
-                    TogglePill(Strings.get("search"), search, { settings.setSearch(!search) }, R.drawable.ic_globe)
-                }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(5.dp))
                 val disabledSendBg = if (c.dark) Color(0xFF4D6BFE).copy(alpha = 0.35f) else Color(0xFFB3C5FF)
                 Box(
                     Modifier.size(32.dp)

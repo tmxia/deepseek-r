@@ -721,7 +721,7 @@ internal fun TogglePill(label: String, on: Boolean, onClick: () -> Unit, icon: I
     val pillShape = RoundedCornerShape(18.dp)
     val bg = if (on) c.buttonGhostActiveFill else if (c.dark) c.inputMajor else Color.Transparent
     Row(
-        Modifier.height(33.dp).defaultMinSize(minWidth = 100.dp)
+        Modifier.height(31.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(pillShape)
             .background(bg)
@@ -732,18 +732,18 @@ internal fun TogglePill(label: String, on: Boolean, onClick: () -> Unit, icon: I
                 indication = null,
                 role = androidx.compose.ui.semantics.Role.Checkbox,
             ) { onClick() }
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         Icon(painterResource(icon), null,
             tint = if (on) c.brandText else c.labelPrimary,
-            modifier = Modifier.size(15.5.dp))
-        Spacer(Modifier.width(5.dp))
+            modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(4.dp))
         Text(
             label,
-            fontSize = 13.5.sp,
-            lineHeight = 19.sp,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
             maxLines = 1,
             softWrap = false,
             fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
