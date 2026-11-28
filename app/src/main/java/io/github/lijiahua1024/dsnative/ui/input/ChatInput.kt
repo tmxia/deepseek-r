@@ -357,7 +357,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
             BasicTextField(
                 value = text,
                 onValueChange = { text = it; chatStore.setDraft(activeId, it) },
-                textStyle = TextStyle(fontSize = 16.75.sp, color = c.labelPrimary,
+                textStyle = TextStyle(fontSize = 15.sp, color = c.labelPrimary,
                     lineHeight = 24.sp, fontFamily = DsTheme.fontFamily),
                 cursorBrush = SolidColor(c.brandText),
                 singleLine = false,
@@ -372,7 +372,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
                         if (text.isEmpty()) {
                             Text(
                                 Strings.get(if (focused) "androidMessageHint" else "androidHoldHint"),
-                                fontSize = 16.75.sp, lineHeight = 24.sp, color = c.labelCaption,
+                                fontSize = 15.sp, lineHeight = 24.sp, color = c.labelCaption,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
