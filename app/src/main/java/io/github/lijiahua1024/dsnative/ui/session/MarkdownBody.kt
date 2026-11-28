@@ -368,23 +368,25 @@ fun MarkdownBody(
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
     // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前列表锚点、拉起视口。几何校正见
     // [ensureFoldButtonVisible] / [restorePreExpandAnchor]。
-    var followExpand by remember(itemIndex) { mutableStateOf(false) }
-    var followCollapse by remember(itemIndex) { mutableStateOf(false) }
+    // 事件序号作 effect key（单调递增、块内不清零），展开/收起方向单独存、不作 key。
+    // 旧实现把会被块内复位的布尔标志（followExpand/followCollapse）当作 LaunchedEffect key：
+    // 协程进入跟随函数挂起等帧后，标志复位提交触发 key 变化，Compose 取消正在执行的旧协程，
+    // 收起回滚的 scrollToItem 被中断（真机日志表现为 restore target/after 日志缺失、视口掉到相邻条目）。
     var preExpandAnchor by remember(itemIndex) { mutableStateOf<Pair<Int, Int>?>(null) }
+    var followSeq by remember(itemIndex) { mutableStateOf(0) }
+    var followExpanding by remember(itemIndex) { mutableStateOf(true) }
     val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
-    LaunchedEffect(followExpand) {
-        if (!followExpand) return@LaunchedEffect
-        followExpand = false
-        listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
-    }
-    LaunchedEffect(followCollapse) {
-        if (!followCollapse) return@LaunchedEffect
-        followCollapse = false
-        val a = preExpandAnchor
-        DebugLog.log("foldAnchor", "collapse-effect idx=$itemIndex anchor=$a " +
-            "cur=(${listState.firstVisibleItemIndex},${listState.firstVisibleItemScrollOffset})")
-        a?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
-        preExpandAnchor = null
+    LaunchedEffect(followSeq) {
+        if (followSeq == 0) return@LaunchedEffect
+        if (followExpanding) {
+            listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
+        } else {
+            val a = preExpandAnchor
+            DebugLog.log("foldAnchor", "collapse-effect idx=$itemIndex anchor=$a " +
+                "cur=(${listState.firstVisibleItemIndex},${listState.firstVisibleItemScrollOffset})")
+            a?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
+            preExpandAnchor = null
+        }
     }
     val followRequestor = remember(itemIndex) {
         ViewportFollowRequestor { expanding ->
@@ -393,11 +395,11 @@ fun MarkdownBody(
             if (expanding) {
                 preExpandAnchor = curIdx to curOff
                 DebugLog.log("foldAnchor", "expand idx=$itemIndex recordAnchor=($curIdx,$curOff)")
-                followExpand = true
             } else {
                 DebugLog.log("foldAnchor", "collapse idx=$itemIndex anchor=$preExpandAnchor cur=($curIdx,$curOff)")
-                followCollapse = true
             }
+            followExpanding = expanding
+            followSeq++
         }
     }
     val content: @Composable () -> Unit = {
