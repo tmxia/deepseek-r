@@ -430,6 +430,14 @@ fun DrawerFrame(
 
         Box(Modifier.fillMaxSize()) {
             val activeDrawerWidthPx = drawerWidthPx + (widthPx - drawerWidthPx) * searchFrac
+            // ref frame::before：scrim 是首子层，垫在抽屉面板与主卡片之下，只压暗层间背景，
+            // 不能叠在抽屉面板上方——否则浅色抽屉被黑罩压成左侧灰带（深色底上不可见）。
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    val p = progress
+                    if (p > 0f && p < 1f) drawRect(Color.Black, alpha = 0.21f * (1f - p))
+                }
+            )
             Box(
                 Modifier
                     .fillMaxSize()
@@ -451,12 +459,6 @@ fun DrawerFrame(
                     }
                 }
             }
-            Box(
-                Modifier.fillMaxSize().drawBehind {
-                    val p = progress
-                    if (p > 0f && p < 1f) drawRect(Color.Black, alpha = 0.21f * (1f - p))
-                }
-            )
             // Main content layer: 与 Web 一致，抽屉开合只做纯水平平推，去掉 scale 收缩，
             // 避免卡片上下边缘随缩放反复光栅化产生顶底横线闪。
             Box(
