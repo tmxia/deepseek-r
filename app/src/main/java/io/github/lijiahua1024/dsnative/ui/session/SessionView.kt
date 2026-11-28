@@ -16,6 +16,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -355,6 +356,8 @@ fun SessionView(
                                 siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
                                 uploadReply = visible.getOrNull(index + 1) as? Message.Assistant,
                                 chatStore = chatStore,
+                                listState = listState,
+                                itemIndex = index,
                                 onMenu = onUserMenu,
                             )
                         }
@@ -363,6 +366,8 @@ fun SessionView(
                             sessionId = curSessionId,
                             siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
                             chatStore = chatStore,
+                            listState = listState,
+                            itemIndex = index,
                             isLast = index == visible.size - 1,
                             fresh = isLatestTurn,
                             onOpenSettings = onOpenSettings,
@@ -824,6 +829,8 @@ fun UserBubble(
     siblingIds: List<String>,
     uploadReply: Message.Assistant?,
     chatStore: ChatStore,
+    listState: LazyListState,
+    itemIndex: Int,
     onMenu: (Message.User, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
 ) {
     val c = DsTheme.colors
@@ -872,6 +879,32 @@ fun UserBubble(
             // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
             // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
+            // 折叠/展开改变气泡高度后请求一次视口跟随：把本条气泡（含折叠按钮）保持在可见区内，
+            // 避免高度收回后底部留白、或展开后内容/按钮被推出视口。
+            var adjustRequested by remember(msg.id) { mutableStateOf(false) }
+            val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
+            LaunchedEffect(adjustRequested) {
+                if (!adjustRequested) return@LaunchedEffect
+                androidx.compose.runtime.withFrameNanos { }
+                val info = listState.layoutInfo
+                val item = info.visibleItemsInfo.firstOrNull { it.index == itemIndex }
+                if (item != null) {
+                    val margin = followMarginPx
+                    val top = item.offset
+                    val bottom = item.offset + item.size
+                    val viewBottom = info.viewportEndOffset
+                    var delta = 0f
+                    if (bottom > viewBottom - margin) {
+                        // 底部越界：内容上移收回视口（dispatchRawDelta 正值方向，贴底跟随同口径）。
+                        delta = (bottom - (viewBottom - margin)).toFloat()
+                    } else if (top < margin) {
+                        // 顶部越界：内容下移放出视口。
+                        delta = (top - margin).toFloat()
+                    }
+                    if (kotlin.math.abs(delta) > 0.5f) listState.dispatchRawDelta(delta)
+                }
+                adjustRequested = false
+            }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
@@ -914,7 +947,10 @@ fun UserBubble(
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
-                                    ) { collapsed = !collapsed }
+                                    ) {
+                                        collapsed = !collapsed
+                                        adjustRequested = true
+                                    }
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -1151,6 +1187,8 @@ fun AssistantView(
     sessionId: String,
     siblingIds: List<String>,
     chatStore: ChatStore,
+    listState: LazyListState,
+    itemIndex: Int,
     isLast: Boolean = false,
     fresh: Boolean = false,
     onOpenSettings: () -> Unit = {},
@@ -1197,7 +1235,9 @@ fun AssistantView(
                 is ReplyBlock.Text -> MarkdownBody(block.text,
                     Modifier.padding(top = if (prevWasStep) 5.dp else 0.dp),
                     streaming = msg.status == ReplyStatus.STREAMING,
-                    fresh = fresh)
+                    fresh = fresh,
+                    listState = listState,
+                    itemIndex = itemIndex)
                     .also { prevWasStep = false }
                 is ReplyBlock.Tool -> {
                     val step = toolStep(block, msg.blocks, sources, msg.status == ReplyStatus.STREAMING)

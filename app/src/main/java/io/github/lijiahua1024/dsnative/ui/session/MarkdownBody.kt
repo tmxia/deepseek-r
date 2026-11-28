@@ -12,13 +12,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -305,6 +309,10 @@ private fun bottomMargin(n: Node, isLast: Boolean): Int = when (n) {
     else -> 16
 }
 
+/** 代码块折叠/展开后请求外层列表做一次视口跟随补偿（补偿对象为整条消息 item）。 */
+private class ViewportFollowRequestor(val request: () -> Unit)
+private val LocalViewportFollow = compositionLocalOf<ViewportFollowRequestor?> { null }
+
 @Composable
 fun MarkdownBody(
     text: String,
@@ -312,6 +320,8 @@ fun MarkdownBody(
     streaming: Boolean = false,
     selectable: Boolean = false,
     fresh: Boolean = false,
+    listState: LazyListState,
+    itemIndex: Int,
 ) {
     val c = DsTheme.colors
     val baseUriHandler = LocalUriHandler.current
@@ -347,6 +357,29 @@ fun MarkdownBody(
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
+    // 代码块折叠/展开改变整条消息高度后，请求一次外层视口跟随：把本条消息保持在可见区内。
+    var adjustRequested by remember(itemIndex) { mutableStateOf(false) }
+    val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
+    LaunchedEffect(adjustRequested) {
+        if (!adjustRequested) return@LaunchedEffect
+        androidx.compose.runtime.withFrameNanos { }
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == itemIndex }
+        if (item != null) {
+            val top = item.offset
+            val bottom = item.offset + item.size
+            val viewBottom = info.viewportEndOffset
+            var delta = 0f
+            if (bottom > viewBottom - followMarginPx) {
+                delta = (bottom - (viewBottom - followMarginPx)).toFloat()
+            } else if (top < followMarginPx) {
+                delta = (top - followMarginPx).toFloat()
+            }
+            if (kotlin.math.abs(delta) > 0.5f) listState.dispatchRawDelta(delta)
+        }
+        adjustRequested = false
+    }
+    val followRequestor = remember(itemIndex) { ViewportFollowRequestor { adjustRequested = true } }
     val content: @Composable () -> Unit = {
         Column(modifier) {
             parsedChunks.forEachIndexed { chunkIdx, chunk ->
@@ -367,10 +400,12 @@ fun MarkdownBody(
             }
         }
     }
-    if (selectable) {
-        SelectionContainer { content() }
-    } else {
-        content()
+    CompositionLocalProvider(LocalViewportFollow provides followRequestor) {
+        if (selectable) {
+            SelectionContainer { content() }
+        } else {
+            content()
+        }
     }
 }
 
@@ -506,6 +541,7 @@ private fun RenderBlock(
                 // 更早轮次默认折叠；用户手动展开/收起后不再被自动规则覆盖。remember 不挂文本/流式
                 // 键，代码流式增长或状态翻转都不会丢弃手动选择。
                 var collapsed by remember { mutableStateOf(!fresh) }
+                val followRequest = LocalViewportFollow.current?.request
                 // ref CodeBlock <pre>：white-space pre-wrap + overflow-wrap anywhere，
                 // 长行在容器宽度内自动换行；不做横向滚动，避免折叠/展开间 intrinsic
                 // 宽度与滚动状态重算导致的布局跳闪。
@@ -547,7 +583,10 @@ private fun RenderBlock(
                                 .shadow(1.5.dp, androidx.compose.foundation.shape.RoundedCornerShape(50))
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                                 .background(c.buttonElevatedFill)
-                                .clickable { collapsed = !collapsed }
+                                .clickable {
+                                    collapsed = !collapsed
+                                    followRequest?.invoke()
+                                }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
                         ) {
