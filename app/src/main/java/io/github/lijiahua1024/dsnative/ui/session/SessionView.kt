@@ -92,6 +92,9 @@ fun SessionView(
         chatStore.streaming
     }.collectAsState()
     val listState = rememberLazyListState()
+    // 用户气泡展开前锚点表：按消息 id 存在会话级外层作用域。条目回收/子树重建会丢弃条目内
+    // remember 的内存态，锚点放在外层不随条目生命周期重置，保证收起时仍能回滚到展开前位置。
+    val bubbleAnchors = remember { mutableStateMapOf<String, Pair<Int, Int>>() }
     var sourcesPanel by remember { mutableStateOf<List<Source>?>(null) }
     // (msg, 气泡 boundsInWindow) —— 参照物菜单在页内 DOM，Popup 窗口
     // 会把强制对比度的黑色导航栏区域刷白，必须用窗口内 overlay
@@ -359,6 +362,7 @@ fun SessionView(
                                 chatStore = chatStore,
                                 listState = listState,
                                 itemIndex = index,
+                                anchorMap = bubbleAnchors,
                                 onMenu = onUserMenu,
                             )
                         }
@@ -834,6 +838,7 @@ fun UserBubble(
     chatStore: ChatStore,
     listState: LazyListState,
     itemIndex: Int,
+    anchorMap: MutableMap<String, Pair<Int, Int>>,
     onMenu: (Message.User, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
 ) {
     val c = DsTheme.colors
@@ -882,22 +887,21 @@ fun UserBubble(
             // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
             // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
-            // 跟随口径与代码块一致：展开不滚动、视口保持原位；收起锚回展开前列表锚点。
             // 事件序号作 effect key（单调递增、块内不清零），展开/收起方向单独存、不作 key；
             // 避免把会被复位的布尔标志当 key，协程挂起等帧后标志复位触发 key 变化而被取消。
-            var preExpandAnchor by remember(msg.id) { mutableStateOf<Pair<Int, Int>?>(null) }
+            // 展开前锚点存在外层会话级 [anchorMap]，不随条目回收/子树重建丢失。
             var followSeq by remember(msg.id) { mutableStateOf(0) }
             var followExpanding by remember(msg.id) { mutableStateOf(true) }
             LaunchedEffect(followSeq) {
                 if (followSeq == 0) return@LaunchedEffect
                 if (!followExpanding) {
-                    val a = preExpandAnchor
+                    val a = anchorMap[msg.id]
                     val vis = listState.layoutInfo.visibleItemsInfo
                     DebugLog.log("foldAnchor", "bubble collapse-effect idx=$itemIndex anchor=$a " +
                         "cur=(${listState.firstVisibleItemIndex},${listState.firstVisibleItemScrollOffset}) " +
                         "vis=${vis.firstOrNull()?.index}..${vis.lastOrNull()?.index}")
                     a?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
-                    preExpandAnchor = null
+                    anchorMap.remove(msg.id)
                 }
             }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
@@ -949,13 +953,13 @@ fun UserBubble(
                                         val vis = listState.layoutInfo.visibleItemsInfo
                                         val expanding = collapsed
                                         if (expanding) {
-                                            preExpandAnchor = curIdx to curOff
+                                            anchorMap[msg.id] = curIdx to curOff
                                             DebugLog.log("foldAnchor", "bubble expand idx=$itemIndex " +
                                                 "recordAnchor=($curIdx,$curOff) " +
                                                 "vis=${vis.firstOrNull()?.index}..${vis.lastOrNull()?.index}")
                                         } else {
                                             DebugLog.log("foldAnchor", "bubble collapse idx=$itemIndex " +
-                                                "anchor=$preExpandAnchor cur=($curIdx,$curOff) " +
+                                                "anchor=${anchorMap[msg.id]} cur=($curIdx,$curOff) " +
                                                 "vis=${vis.firstOrNull()?.index}..${vis.lastOrNull()?.index}")
                                         }
                                         followExpanding = expanding
