@@ -2,6 +2,7 @@ package io.github.lijiahua1024.dsnative.ui.session
 
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.withFrameNanos
+import io.github.lijiahua1024.dsnative.data.DebugLog
 import kotlin.math.abs
 
 /**
@@ -51,5 +52,9 @@ suspend fun LazyListState.ensureFoldButtonVisible(index: Int, marginPx: Float) {
 suspend fun LazyListState.restorePreExpandAnchor(anchorIndex: Int, anchorOffset: Int) {
     withFrameNanos { }
     withFrameNanos { }
+    DebugLog.log("foldAnchor", "restore target=($anchorIndex,$anchorOffset) " +
+        "before=(${firstVisibleItemIndex},${firstVisibleItemScrollOffset})")
     scrollToItem(anchorIndex, anchorOffset)
+    withFrameNanos { }
+    DebugLog.log("foldAnchor", "restore after=(${firstVisibleItemIndex},${firstVisibleItemScrollOffset})")
 }

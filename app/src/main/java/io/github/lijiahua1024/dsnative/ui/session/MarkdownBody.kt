@@ -63,6 +63,7 @@ import io.github.lijiahua1024.dsnative.theme.Strings
 import androidx.compose.ui.unit.sp
 import io.github.lijiahua1024.dsnative.theme.DsTheme
 import io.github.lijiahua1024.dsnative.data.FrameTrace
+import io.github.lijiahua1024.dsnative.data.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.commonmark.ext.autolink.AutolinkExtension
@@ -379,16 +380,22 @@ fun MarkdownBody(
     LaunchedEffect(followCollapse) {
         if (!followCollapse) return@LaunchedEffect
         followCollapse = false
-        preExpandAnchor?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
+        val a = preExpandAnchor
+        DebugLog.log("foldAnchor", "collapse-effect idx=$itemIndex anchor=$a " +
+            "cur=(${listState.firstVisibleItemIndex},${listState.firstVisibleItemScrollOffset})")
+        a?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
         preExpandAnchor = null
     }
     val followRequestor = remember(itemIndex) {
         ViewportFollowRequestor { expanding ->
+            val curIdx = listState.firstVisibleItemIndex
+            val curOff = listState.firstVisibleItemScrollOffset
             if (expanding) {
-                preExpandAnchor =
-                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                preExpandAnchor = curIdx to curOff
+                DebugLog.log("foldAnchor", "expand idx=$itemIndex recordAnchor=($curIdx,$curOff)")
                 followExpand = true
             } else {
+                DebugLog.log("foldAnchor", "collapse idx=$itemIndex anchor=$preExpandAnchor cur=($curIdx,$curOff)")
                 followCollapse = true
             }
         }
