@@ -351,6 +351,7 @@ fun SessionView(
                                 siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
                                 uploadReply = visible.getOrNull(index + 1) as? Message.Assistant,
                                 chatStore = chatStore,
+                                fresh = isLatestTurn,
                                 onMenu = onUserMenu,
                             )
                         }
@@ -820,6 +821,7 @@ fun UserBubble(
     siblingIds: List<String>,
     uploadReply: Message.Assistant?,
     chatStore: ChatStore,
+    fresh: Boolean = false,
     onMenu: (Message.User, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
 ) {
     val c = DsTheme.colors
@@ -864,10 +866,10 @@ fun UserBubble(
         if (msg.content.isNotEmpty()) {
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
-            // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
-            // 或折叠选择。折叠恢复不绑定最新/历史轮次：未手动改过时默认展开，只有用户
-            // 手动切换过折叠状态，才以手动选择为准并跨重组/回收保留。
-            var collapsed by rememberSaveable(msg.id) { mutableStateOf(false) }
+            // 折叠规则：最新一轮（fresh）气泡强制展开，不提供折叠按钮，手动折叠态对最新轮
+            // 无效；更早的历史轮次默认自动折叠，用户手动切换后的折叠/展开选择仅在该历史
+            // 轮次内保留。key 纳入 fresh：轮次身份变化时重置为对应默认态，旧手动态不跨轮次生效。
+            var collapsed by rememberSaveable(msg.id, fresh) { mutableStateOf(!fresh) }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
@@ -889,12 +891,13 @@ fun UserBubble(
                         Text(
                             msg.content,
                             fontSize = 15.sp, lineHeight = 24.5.sp, fontWeight = FontWeight.Medium, color = c.labelPrimary,
-                            maxLines = if (needsFold && collapsed) 4 else Int.MAX_VALUE,
+                            maxLines = if (!fresh && needsFold && collapsed) 4 else Int.MAX_VALUE,
                             overflow = TextOverflow.Clip,
                         )
                     }
                     // ref .foldToggle：整行可点、右对齐；白色圆形纯图标按钮，方向随展开态翻转。
-                    if (needsFold) {
+                    // 仅历史轮次显示折叠按钮，最新一轮保持展开且不可折叠。
+                    if (needsFold && !fresh) {
                         Row(
                             Modifier.fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -1520,8 +1523,10 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                 androidx.compose.animation.core.tween(220, easing = discEase))
                 + androidx.compose.animation.fadeOut(
                     androidx.compose.animation.core.tween(160))) {
-            Row(Modifier.height(IntrinsicSize.Min)) {
-                Box(Modifier.padding(start = 7.5.dp, top = 4.dp).width(1.dp).fillMaxHeight().background(c.thinkingLine))
+            // 竖线用 matchParentSize 背景层随内容等高：不再发起 IntrinsicSize 固有测量，
+            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退。
+            Box {
+                Box(Modifier.matchParentSize().padding(start = 7.5.dp, top = 4.dp).width(1.dp).background(c.thinkingLine))
                 Column(Modifier.padding(start = 24.dp)) {
                     IntrinsicHeightGuard {
                         Box(

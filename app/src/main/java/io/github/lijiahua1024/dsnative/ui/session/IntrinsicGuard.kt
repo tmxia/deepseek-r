@@ -11,7 +11,7 @@ import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.unit.Constraints
 
 /**
- * 固有测量（intrinsic）高度防御封顶。
+ * 固有测量（intrinsic）高度兜底封顶。
  *
  * 背景：Compose 打包 [Constraints] 时，宽、高各自所需位宽之和不能超过 31 位。固有测量阶段
  * 宽度哨兵为 32767（落入 16 位档），若子项上报的固有高度也 ≥32768（同样 16 位档），
@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.Constraints
  *
  * 这里只钳制固有测量向父级上报的高度；常规测量/布局高度完全不受影响，不裁剪、不压缩真实内容。
  * 封顶值取 32000px，低于 32767 哨兵（15 位档），与宽度哨兵位宽合计 31 位，可正常编码。
+ * 主修复已移除引用块 / 表格行 / 思考块上的 IntrinsicSize 固有测量入口，本层仅作残留兜底。
  */
 private const val INTRINSIC_HEIGHT_CAP_PX = 32000
 
@@ -50,8 +51,8 @@ private val IntrinsicHeightGuardPolicy = object : MeasurePolicy {
 }
 
 /**
- * 把内容包一层固有高度封顶：父级做 intrinsic 测量时拿到的高度不会超过 [INTRINSIC_HEIGHT_CAP_PX]，
- * 正常渲染尺寸保持原样。用于引用块 / 表格行 / 思考块这类带 IntrinsicSize 的纵向容器。
+ * 把内容包一层固有高度兜底：父级做 intrinsic 测量时拿到的高度不会超过 [INTRINSIC_HEIGHT_CAP_PX]，
+ * 正常渲染尺寸保持原样。
  */
 @Composable
 internal fun IntrinsicHeightGuard(content: @Composable () -> Unit) {

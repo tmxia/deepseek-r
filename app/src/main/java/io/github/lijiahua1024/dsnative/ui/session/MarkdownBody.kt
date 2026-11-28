@@ -563,8 +563,10 @@ private fun RenderBlock(
             }
         }
         is BlockQuote -> {
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                Box(Modifier.width(2.dp).fillMaxHeight().background(c.labelCaption))
+            // 竖条用 matchParentSize 背景层随内容等高：不再发起 IntrinsicSize 固有测量，
+            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退。
+            Box(Modifier.fillMaxWidth()) {
+                Box(Modifier.matchParentSize().width(2.dp).background(c.labelCaption))
                 Column(Modifier.padding(start = 14.dp)) {
                     IntrinsicHeightGuard {
                         Column {
@@ -951,9 +953,12 @@ private fun RenderTableGrid(
                 .then(if (needHScroll) Modifier.excludeFromDrawerGesture().horizontalScroll(tableScroll) else Modifier),
         ) {
             rows.forEachIndexed { rIdx, (isHeader, rowCells) ->
+                // 不再用 IntrinsicSize.Max 做等高：固有（max-intrinsic）测量会在最窄宽度下
+                // 把长段落重排为爆炸高度并带入 Constraints 打包，触发位宽越界闪退。行高由
+                // Row wrap-content 取最高单元格，行背景整行铺色；单元格顶对齐。
                 Row(
                     Modifier
-                        .height(IntrinsicSize.Max)
+                        .fillMaxWidth()
                         .background(if (isHeader) headerBg else bodyBg),
                 ) {
                     for (colIdx in 0 until cols) {
@@ -961,9 +966,8 @@ private fun RenderTableGrid(
                         Box(
                             Modifier
                                 .width(colW)
-                                .fillMaxHeight()
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
-                            contentAlignment = Alignment.CenterStart,
+                            contentAlignment = Alignment.TopStart,
                         ) {
                             IntrinsicHeightGuard {
                                 if (cell != null) {
@@ -987,9 +991,6 @@ private fun RenderTableGrid(
                                     )
                                 }
                             }
-                        }
-                        if (colIdx < cols - 1) {
-                            Box(Modifier.width(0.75.dp).fillMaxHeight().background(gridColor))
                         }
                     }
                 }
