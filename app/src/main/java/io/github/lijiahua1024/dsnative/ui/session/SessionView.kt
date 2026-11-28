@@ -238,46 +238,50 @@ fun SessionView(
         }
         LaunchedEffect(activeId, visible.size) {
             if (!DebugLog.enabled) return@LaunchedEffect
-            var user = 0
-            var assistant = 0
-            var chars = 0
-            var files = 0
-            var imgs = 0
-            var thinking = 0
-            var tool = 0
-            var text = 0
-            var codeFence = 0
-            var tableRow = 0
-            var mathBlock = 0
-            var mermaid = 0
-            for (m in visible) when (m) {
-                is Message.User -> {
-                    user++
-                    chars += m.content.length
-                    files += m.files.size
-                    imgs += m.files.count { it.isImage }
-                }
-                is Message.Assistant -> {
-                    assistant++
-                    chars += replyText(m).length
-                    for (b in m.blocks) when (b) {
-                        is ReplyBlock.Thinking -> thinking++
-                        is ReplyBlock.Tool -> tool++
-                        is ReplyBlock.Text -> {
-                            text++
-                            codeFence += FENCE_RE.findAll(b.text).count()
-                            mermaid += if (b.text.contains("```mermaid")) 1 else 0
-                            mathBlock += b.text.split("$$").size - 1
-                            tableRow += b.text.lineSequence()
-                                .count { it.trimStart().startsWith("|") }
+            // 全量消息遍历与围栏/表格/$$ 正则扫描仅服务调试统计；挪到后台线程，
+            // 避免超长会话进入时主线程被几百条、近百万字符的正则扫描阻塞而打开即卡。
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                var user = 0
+                var assistant = 0
+                var chars = 0
+                var files = 0
+                var imgs = 0
+                var thinking = 0
+                var tool = 0
+                var text = 0
+                var codeFence = 0
+                var tableRow = 0
+                var mathBlock = 0
+                var mermaid = 0
+                for (m in visible) when (m) {
+                    is Message.User -> {
+                        user++
+                        chars += m.content.length
+                        files += m.files.size
+                        imgs += m.files.count { it.isImage }
+                    }
+                    is Message.Assistant -> {
+                        assistant++
+                        chars += replyText(m).length
+                        for (b in m.blocks) when (b) {
+                            is ReplyBlock.Thinking -> thinking++
+                            is ReplyBlock.Tool -> tool++
+                            is ReplyBlock.Text -> {
+                                text++
+                                codeFence += FENCE_RE.findAll(b.text).count()
+                                mermaid += if (b.text.contains("```mermaid")) 1 else 0
+                                mathBlock += b.text.split("$$").size - 1
+                                tableRow += b.text.lineSequence()
+                                    .count { it.trimStart().startsWith("|") }
+                            }
                         }
                     }
                 }
+                DebugLog.log("perf", "session=${activeId ?: "new"} msgs=${visible.size} " +
+                    "user=$user assistant=$assistant chars=$chars files=$files img=$imgs " +
+                    "think=$thinking tool=$tool text=$text code=$codeFence table=$tableRow " +
+                    "math=$mathBlock mermaid=$mermaid")
             }
-            DebugLog.log("perf", "session=${activeId ?: "new"} msgs=${visible.size} " +
-                "user=$user assistant=$assistant chars=$chars files=$files img=$imgs " +
-                "think=$thinking tool=$tool text=$text code=$codeFence table=$tableRow " +
-                "math=$mathBlock mermaid=$mermaid")
         }
         LaunchedEffect(activeId) {
             var lastLogged = -1
