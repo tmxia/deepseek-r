@@ -1551,7 +1551,10 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
         TextStyle(color = titleColor, fontSize = 14.sp)
     }
     Column {
-        Row(Modifier.fillMaxWidth().height(34.dp).clickable {
+        Row(Modifier.fillMaxWidth().height(34.dp).clickable(
+            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+            indication = null,
+        ) {
             when {
                 previewActive && previewOverflow -> streamExpanded = !streamExpanded
                 else -> override = !expanded

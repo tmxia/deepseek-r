@@ -1453,8 +1453,16 @@ class ChatStore(
                 if (converted == null) {
                     return if (block.optString("type") == "tool_use") next.copy(prefix = false) else next
                 }
-                blockIndexes[index] = next.blocks.size
-                next.copy(blocks = next.blocks + converted)
+                val existingThinking = next.blocks.indexOfLast { it is ReplyBlock.Thinking }
+                if (converted is ReplyBlock.Thinking && existingThinking >= 0) {
+                    // 续接流（继续生成）复用已有思考块，避免并列出现第二条"正在思考"卡片；
+                    // 后续 thinking_delta / signature_delta 仍按索引追加到该块。
+                    blockIndexes[index] = existingThinking
+                    next
+                } else {
+                    blockIndexes[index] = next.blocks.size
+                    next.copy(blocks = next.blocks + converted)
+                }
             }
             "content_block_delta" -> {
                 val index = blockIndexes[payload.optInt("index")] ?: return next
