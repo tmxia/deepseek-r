@@ -1591,11 +1591,9 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                 androidx.compose.animation.core.tween(220, easing = discEase))
                 + androidx.compose.animation.fadeOut(
                     androidx.compose.animation.core.tween(160))) {
-            // 竖线用 fillMaxHeight 背景层随内容等高：不发起 IntrinsicSize 固有测量，
-            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退；
-            // 宽度固定 1dp（matchParentSize 会把满宽约束带下来，使 width 失效而铺满整行）。
-            Box {
-                Box(Modifier.align(Alignment.TopStart).fillMaxHeight().padding(start = 7.5.dp, top = 4.dp).width(1.dp).background(c.thinkingLine))
+            // 竖线等高背景层：matchParentSize 跟随内容层尺寸（条目高度约束为无限时
+            // fillMaxHeight 会退化为 minHeight=0 致竖条不显示）；Canvas 仅左侧画 1dp 竖线，不铺整行。
+            Box(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(start = 24.dp)) {
                     IntrinsicHeightGuard {
                         Box(
@@ -1630,6 +1628,18 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                         }
                     }
                 }
+                androidx.compose.foundation.Canvas(
+                    Modifier.matchParentSize().align(Alignment.TopStart)
+                ) {
+                    val x = 7.5.dp.toPx()
+                    val top = 4.dp.toPx()
+                    drawLine(
+                        color = c.thinkingLine,
+                        start = androidx.compose.ui.geometry.Offset(x, top),
+                        end = androidx.compose.ui.geometry.Offset(x, size.height - top),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                }
             }
         }
         Spacer(Modifier.height(areaPad))
@@ -1643,7 +1653,12 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
 private fun thinkingPlainText(raw: String): String {
     if (raw.isEmpty()) return raw
     val lines = raw.lineSequence().map { line ->
-        if (line.trimStart().startsWith("```")) "" else line.replace("`", "")
+        if (line.trimStart().startsWith("```")) {
+            ""
+        } else {
+            // 剥离加粗标记 ** 与行内反引号，避免 markdown 符号裸露；文字内容保留平铺
+            line.replace("**", "").replace("`", "")
+        }
     }.toList()
     return lines.joinToString("\n").trimEnd()
 }

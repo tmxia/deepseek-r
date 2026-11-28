@@ -164,7 +164,7 @@ val LightColors = DsColors(
     sidebarNavItemHover = Color(0xFFF1F3F5),
     thinkingText = Color(0xFF939396),
     thinkingDot = Color(0xFFA2A4A6),
-    thinkingLine = Color(0xFFEDEDED),
+    thinkingLine = Color(0xFFE5E5E5),
     searchSummaryText = Color(0xFF545557),
 )
 
