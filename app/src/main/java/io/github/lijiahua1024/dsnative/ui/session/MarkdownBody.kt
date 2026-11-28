@@ -28,8 +28,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
@@ -40,7 +38,6 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -101,7 +98,7 @@ import org.commonmark.parser.Parser
 // 16px (collapsed → 16dp gaps), h1-h3 32/16, list items 6px, marker
 // label-secondary, blockquote 2px labelCaption bar + 14 padding, table
 // bottom-borders only 15/25, code block banner + radius 12 + 13/22 mono,
-// inline code 14 on markdownInlineCode r6, display math fallback = raw tex.
+// inline code 14 mono tertiary transparent, display math fallback = raw tex.
 private val parser: Parser by lazy {
     Parser.builder()
         .extensions(
@@ -126,11 +123,6 @@ private val mathBlock = Regex("\\$\\$([\\s\\S]+?)\\$\\$")
 // `Roboto, 'Noto Sans CJK SC'` stack to the bundled SC face for latin AND CJK
 // (latin advances ~5% wider than Android's Roboto fallback).
 
-// In the ref, inline <code> is a real box: its 5px padding occupies layout
-// space, so following text starts after the chip edge. A drawn-only chip
-// would overlap the next glyph; zero-height placeholders reproduce the gap.
-private const val CHIP_PAD = "ds-inline-chip-pad"
-
 // [citation:N] in reply markdown -> 来源角标（见 Sources.kt 的面板与 Registry）
 private val CITE_RE = Regex("\\[citation:(\\d+)\\]")
 
@@ -141,16 +133,6 @@ private val dsLineStyle = LineHeightStyle(
     trim = LineHeightStyle.Trim.None,
 )
 private val cssLeading = androidx.compose.ui.text.TextStyle(lineHeightStyle = dsLineStyle)
-private val chipPadContent = mapOf(
-    CHIP_PAD to InlineTextContent(
-        Placeholder(
-            width = 5.sp,
-            height = 1.sp,
-            placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
-        ),
-    ) {},
-)
-
 private val CITE_BADGE_SHAPE = androidx.compose.foundation.shape.RoundedCornerShape(
     topStart = 6.dp, topEnd = 6.dp, bottomEnd = 6.dp, bottomStart = 0.dp)
 private val URI_SCHEME_RE = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:")
@@ -479,7 +461,7 @@ private fun RenderBlock(
             Text(hStr, fontSize = size,
                 lineHeight = lh, fontWeight = if (node.level <= 3) FontWeight.Bold else FontWeight.SemiBold,
                 style = cssLeading, color = c.labelPrimary,
-                inlineContent = chipPadContent + citeContent(c) + hInline)
+                inlineContent = citeContent(c) + hInline)
         }
         is FencedCodeBlock, is IndentedCodeBlock -> {
             val literal = when (node) {
@@ -513,7 +495,7 @@ private fun RenderBlock(
                 ) {
                     Text(lang.ifEmpty { "text" }, fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = 0.4.sp,
-                        color = c.labelPrimary,
+                        color = c.labelTertiary,
                         modifier = Modifier.padding(start = 8.dp))
                     Spacer(Modifier.weight(1f))
                     // ref CodeBlock .button:active -> interactive-bg-hover; 复制成功仅按钮变勾/变文字，不弹 toast
@@ -748,13 +730,9 @@ private fun ParagraphText(
     mathTokens: Map<Int, ExtractedMathToken> = emptyMap(),
 ) {
     val (styled, mathInlineContent) = rememberInlineMathPrepared(str, c, mathTokens, fontSizeSp = 15f)
-    val hasInlineCodeChip = remember(styled) {
-        styled.spanStyles.any { it.item.fontFamily == FontFamily.Monospace && it.end > it.start }
-    }
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val cite = citeContent(c)
     val inlineContent = remember(cite, mathInlineContent) {
-        chipPadContent + cite + mathInlineContent
+        cite + mathInlineContent
     }
     Text(
         styled, fontSize = 15.sp, lineHeight = 24.sp, color = c.labelPrimary,
@@ -764,32 +742,7 @@ private fun ParagraphText(
         // and shifts all following content up. Center+None reproduces CSS
         // half-leading exactly for this font.
         style = cssLeading,
-        onTextLayout = { if (hasInlineCodeChip) layout = it },
         inlineContent = inlineContent,
-        modifier = if (!hasInlineCodeChip) Modifier else Modifier.drawBehind {
-            val l = layout ?: return@drawBehind
-            val padX = 5.dp.toPx()
-            val radius = 6.dp.toPx()
-            for (s in styled.spanStyles) {
-                if (s.item.fontFamily != FontFamily.Monospace || s.end <= s.start) continue
-                val firstLine = l.getLineForOffset(s.start)
-                val lastLine = l.getLineForOffset(s.end - 1)
-                for (line in firstLine..lastLine) {
-                    val from = maxOf(s.start, l.getLineStart(line))
-                    val to = minOf(s.end, l.getLineEnd(line, true))
-                    if (from >= to) continue
-                    val left = l.getBoundingBox(from).left
-                    val right = l.getBoundingBox(to - 1).right
-                    drawRoundRect(
-                        c.markdownInlineCode,
-                        topLeft = Offset(left - padX, l.getLineTop(line) + 2.dp.toPx()),
-                        size = Size(right - left + 2 * padX,
-                            l.getLineBottom(line) - l.getLineTop(line) - 4.dp.toPx()),
-                        cornerRadius = CornerRadius(radius),
-                    )
-                }
-            }
-        },
     )
 }
 
@@ -1060,7 +1013,7 @@ private fun RenderTableGrid(
                                         fontWeight = if (isHeader) FontWeight.Medium else FontWeight.Normal,
                                         style = cssLeading,
                                         color = c.labelPrimary,
-                                        inlineContent = chipPadContent + citeContent(c) + cellInline,
+                                        inlineContent = citeContent(c) + cellInline,
                                     )
                                 }
                             }
@@ -1330,11 +1283,10 @@ private fun inlineText(
                 append(inlineText(ch, c, uriHandler))
             }
             is Code -> {
-                appendInlineContent(CHIP_PAD, " ")
                 withStyle(
-                    SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp),
+                    SpanStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp,
+                        color = c.labelTertiary),
                 ) { append(ch.literal) }
-                appendInlineContent(CHIP_PAD, " ")
             }
             is Link -> {
                 val url = ch.destination
