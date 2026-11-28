@@ -357,17 +357,33 @@ fun MarkdownBody(
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
-    // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚顶不动、不滚。仅展开方向触发校正，
-    // 几何校正见 [ensureFoldButtonVisible]。
+    // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前顶部位置、拉起视口。几何校正见
+    // [ensureFoldButtonVisible] / [anchorItemTopTo]。
     var followExpand by remember(itemIndex) { mutableStateOf(false) }
+    var followCollapse by remember(itemIndex) { mutableStateOf(false) }
+    var preExpandTop by remember(itemIndex) { mutableStateOf<Int?>(null) }
     val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
     LaunchedEffect(followExpand) {
         if (!followExpand) return@LaunchedEffect
         followExpand = false
         listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
     }
+    LaunchedEffect(followCollapse) {
+        if (!followCollapse) return@LaunchedEffect
+        followCollapse = false
+        preExpandTop?.let { listState.anchorItemTopTo(itemIndex, it) }
+        preExpandTop = null
+    }
     val followRequestor = remember(itemIndex) {
-        ViewportFollowRequestor { expanding -> if (expanding) followExpand = true }
+        ViewportFollowRequestor { expanding ->
+            if (expanding) {
+                preExpandTop = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == itemIndex }?.offset
+                followExpand = true
+            } else {
+                followCollapse = true
+            }
+        }
     }
     val content: @Composable () -> Unit = {
         Column(modifier) {
@@ -573,9 +589,10 @@ private fun RenderBlock(
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                                 .background(c.buttonElevatedFill)
                                 .clickable {
+                                    val wasCollapsed = collapsed
                                     collapsed = !collapsed
-                                    // 新展开态为 !collapsed；仅展开方向上抛跟随，收起不滚。
-                                    followRequest?.invoke(!collapsed)
+                                    // wasCollapsed=true 本次由折叠点开（展开），false 为收起；跟随器分派。
+                                    followRequest?.invoke(wasCollapsed)
                                 }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
