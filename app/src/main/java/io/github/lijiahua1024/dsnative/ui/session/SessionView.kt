@@ -352,7 +352,6 @@ fun SessionView(
                                 uploadReply = visible.getOrNull(index + 1) as? Message.Assistant,
                                 chatStore = chatStore,
                                 onMenu = onUserMenu,
-                                fresh = isLatestTurn,
                             )
                         }
                         is Message.Assistant -> AssistantView(
@@ -822,7 +821,6 @@ fun UserBubble(
     uploadReply: Message.Assistant?,
     chatStore: ChatStore,
     onMenu: (Message.User, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
-    fresh: Boolean = false,
 ) {
     val c = DsTheme.colors
     val coordsRef = remember { CoordsRef() }
@@ -867,9 +865,9 @@ fun UserBubble(
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
             // 折叠态用 rememberSaveable 持久化：列表回收/重组/重挂后恢复用户上次的展开
-            // 或折叠选择。key 只取消息 id，不挂 fresh：用户手动选择后不被最新一轮/历史翻转覆盖；
-            // 初始值仅在首次挂载时按是否最新一轮取（最新一轮展开，更早轮次折叠）。
-            var collapsed by rememberSaveable(msg.id) { mutableStateOf(!fresh) }
+            // 或折叠选择。折叠恢复不绑定最新/历史轮次：未手动改过时默认展开，只有用户
+            // 手动切换过折叠状态，才以手动选择为准并跨重组/回收保留。
+            var collapsed by rememberSaveable(msg.id) { mutableStateOf(false) }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
