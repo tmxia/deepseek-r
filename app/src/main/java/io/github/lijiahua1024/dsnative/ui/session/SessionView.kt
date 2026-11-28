@@ -1523,7 +1523,7 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
         if (previewActive && !streamExpanded) scrollState.scrollTo(scrollState.maxValue)
     }
     val inPreview = previewActive && !streamExpanded
-    val titleColor = c.thinkingText
+    val titleColor = c.thinkingDot
     val titleStyle = if (titleActive) {
         val shimmer = androidx.compose.animation.core.rememberInfiniteTransition(label = "thinkShimmer")
         val p = shimmer.animateFloat(0f, 1f,
@@ -1538,10 +1538,10 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                 0.34f to titleColor, 0.5f to dim, 0.66f to titleColor,
                 start = androidx.compose.ui.geometry.Offset(-3f * w * (1f - p.value), 0f),
                 end = androidx.compose.ui.geometry.Offset(-3f * w * (1f - p.value) + 4f * w, 0f)),
-            fontSize = 16.75.sp,
+            fontSize = 14.sp,
         )
     } else {
-        TextStyle(color = titleColor, fontSize = 16.75.sp)
+        TextStyle(color = titleColor, fontSize = 14.sp)
     }
     Column {
         Row(Modifier.fillMaxWidth().height(34.dp).clickable {
@@ -1555,19 +1555,19 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
             when {
                 previewActive && previewOverflow -> {
                     if (streamExpanded) {
-                        Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                        Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
                             modifier = Modifier.size(14.dp).rotate(90f))
                     } else {
                         // ref .previewIcon：双下箭头堆叠，提示可点开全部思考
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
                                 modifier = Modifier.size(10.dp).rotate(90f).offset(y = 2.dp))
-                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
                                 modifier = Modifier.size(10.dp).rotate(90f).offset(y = (-2).dp))
                         }
                     }
                 }
-                else -> Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingText,
+                else -> Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
                     modifier = Modifier.size(17.dp).rotate(chevDeg))
             }
         }
@@ -1597,7 +1597,7 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                                     .then(if (inPreview) Modifier.verticalScroll(scrollState) else Modifier)
                                     .onSizeChanged { size -> previewOverflow = size.height > previewHeightPx }
                             ) {
-                                Text(block.thinking, fontSize = 15.sp, lineHeight = 24.sp, color = c.thinkingText)
+                                Text(block.thinking, fontSize = 13.sp, lineHeight = 20.sp, color = c.thinkingText)
                             }
                             // ref .previewFade：预览超出时底部渐变淡出到会话背景
                             if (inPreview && previewOverflow) {
