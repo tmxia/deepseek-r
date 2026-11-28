@@ -5,22 +5,21 @@ import androidx.compose.runtime.withFrameNanos
 import kotlin.math.abs
 
 /**
- * 消息 item 因折叠/展开改变高度后的视口跟随校正（锚定顶部）。
+ * 折叠/展开后的视口跟随。
  *
- * 背景：折叠态只改 Text maxLines，气泡/代码块高度随之变化，外层 LazyColumn 不会自动补偿滚动
- * 位置。早期实现按「越界量」`dispatchRawDelta`，且在高度突变、列表自动重排的同一帧读取几何，
- * 相对位移被叠加到自动重排上，表现为高度切换瞬间过推、跳动/闪一下。
+ * 两种状态口径（真机确认）：
+ *  - **展开**：锚定折叠按钮。按钮位于气泡/代码块内容下方，近似整条消息 item 的底部。展开后
+ *    若按钮（item 底部）将被推出视口底部，上收列表把按钮留在视口底部留 margin 处，使按钮上方
+ *    新展开的内容填满视口；上收量不把消息顶部推出上界。条目高于视口（超一屏）时按钮本就不可见，
+ *    退化为顶部对齐视口顶。
+ *  - **收起**：锚定消息顶部不动，列表不主动滚动，下方消息由 LazyColumn 默认重排自然补位。
  *
- * 口径（对齐真机确认）：
- *  - 锚定顶部：展开超长（超一屏）内容时顶部对齐视口，从头阅读；
- *  - 折叠后保持顶部位置不动，不主动上推/下放，避免与列表自动重排叠加出跳动；
- *  - 仅在条目确实越界时做一次稳定校正：顶部越出上界 / 整条落在视口下方，用 `scrollToItem`
- *    锚定回视口；条目矮于视口且底部越界时小幅上收；条目高于视口则保持顶部不动。
- *
- * 必须在新布局落地后调用（onSizeChanged 信号或跨帧之后），不要在点击回调的旧几何上直接调用。
+ * 时机：必须在新高度布局落地后再读几何。调用方在折叠态翻转后的 effect 内触发，本函数再跨两帧
+ * 等待重组/测量/放置完成，避免在旧几何或中间态上推量造成跳动。
  */
-suspend fun LazyListState.followItemTopVisible(index: Int, marginPx: Float) {
-    // 跨一帧确保重组/测量/放置已落地，读到的是新高度几何。
+suspend fun LazyListState.ensureFoldButtonVisible(index: Int, marginPx: Float) {
+    // 跨两帧：第一帧让重组提交，第二帧让测量/放置落地。
+    withFrameNanos { }
     withFrameNanos { }
     val info = layoutInfo
     val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return
@@ -29,16 +28,16 @@ suspend fun LazyListState.followItemTopVisible(index: Int, marginPx: Float) {
     val bottom = top + item.size
     val height = item.size.toFloat()
 
-    when {
-        // 顶部越出上界：锚定回 margin 处（从头读）。
-        top < marginPx -> scrollToItem(index, marginPx.toInt())
-        // 整条已落到视口下方：锚定回顶部。
-        top >= viewBottom -> scrollToItem(index, 0)
-        // 条目矮于视口且底部越界：小幅上收到底部留 margin；高于视口（超一屏）保持顶部。
-        height <= viewBottom && bottom > viewBottom - marginPx -> {
-            val delta = bottom - (viewBottom - marginPx)
-            if (abs(delta) > 0.5f) dispatchRawDelta(delta)
-        }
-        // 其余：顶部合规且在视口内，保持不动，锚顶不跳。
+    // 条目超一屏：按钮在视口外下方，锚按钮不可达，退化为顶部对齐视口顶，从头阅读。
+    if (height > viewBottom) {
+        scrollToItem(index, 0)
+        return
+    }
+    // 底部（按钮）越出视口底：上收到底部留 margin；上收量不把顶部推出上界。
+    if (bottom > viewBottom - marginPx) {
+        var delta = bottom - (viewBottom - marginPx)
+        val maxUp = top - marginPx
+        if (delta > maxUp) delta = maxUp
+        if (abs(delta) > 0.5f) dispatchRawDelta(delta)
     }
 }

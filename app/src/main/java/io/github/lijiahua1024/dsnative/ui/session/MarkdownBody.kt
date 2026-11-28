@@ -25,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
@@ -310,8 +309,8 @@ private fun bottomMargin(n: Node, isLast: Boolean): Int = when (n) {
     else -> 16
 }
 
-/** 代码块折叠/展开后请求外层列表做一次视口跟随补偿（补偿对象为整条消息 item）。 */
-private class ViewportFollowRequestor(val request: () -> Unit)
+/** 代码块折叠/展开后请求外层列表做一次视口跟随；参数 true=刚展开（锚按钮），false=收起。 */
+private class ViewportFollowRequestor(val request: (expanding: Boolean) -> Unit)
 private val LocalViewportFollow = compositionLocalOf<ViewportFollowRequestor?> { null }
 
 @Composable
@@ -358,16 +357,18 @@ fun MarkdownBody(
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
-    // 代码块折叠/展开改变整条消息高度后，请求一次锚顶跟随：等新布局落地再校正，避免在旧几何
-    // 上推量造成首帧跳动。口径见 [followItemTopVisible]。
-    var followRequested by remember(itemIndex) { mutableStateOf(false) }
+    // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚顶不动、不滚。仅展开方向触发校正，
+    // 几何校正见 [ensureFoldButtonVisible]。
+    var followExpand by remember(itemIndex) { mutableStateOf(false) }
     val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
-    LaunchedEffect(followRequested) {
-        if (!followRequested) return@LaunchedEffect
-        followRequested = false
-        listState.followItemTopVisible(itemIndex, followMarginPx)
+    LaunchedEffect(followExpand) {
+        if (!followExpand) return@LaunchedEffect
+        followExpand = false
+        listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
     }
-    val followRequestor = remember(itemIndex) { ViewportFollowRequestor { followRequested = true } }
+    val followRequestor = remember(itemIndex) {
+        ViewportFollowRequestor { expanding -> if (expanding) followExpand = true }
+    }
     val content: @Composable () -> Unit = {
         Column(modifier) {
             parsedChunks.forEachIndexed { chunkIdx, chunk ->
@@ -530,15 +531,12 @@ private fun RenderBlock(
                 // 键，代码流式增长或状态翻转都不会丢弃手动选择。
                 var collapsed by remember { mutableStateOf(!fresh) }
                 val followRequest = LocalViewportFollow.current?.request
-                // 高度落地信号：折叠/展开新高度 place 完成后才上抛跟随请求，避免补偿读到旧几何。
-                var codePending by remember { mutableStateOf(false) }
                 // ref CodeBlock <pre>：white-space pre-wrap + overflow-wrap anywhere，
                 // 长行在容器宽度内自动换行；不做横向滚动，避免折叠/展开间 intrinsic
                 // 宽度与滚动状态重算导致的布局跳闪。
                 Box(
                     Modifier.fillMaxWidth()
                         .background(c.markdownCodeBlockBanner)
-                        .onSizeChanged { if (codePending) { codePending = false; followRequest?.invoke() } }
                 ) {
                     // 折叠态只对可见的前 5 行做高亮，避免长代码块首挂即对全量文本跑正则；展开后再全量高亮。
                     val highlightSource = if (needsFold && collapsed) {
@@ -576,7 +574,8 @@ private fun RenderBlock(
                                 .background(c.buttonElevatedFill)
                                 .clickable {
                                     collapsed = !collapsed
-                                    codePending = true
+                                    // 新展开态为 !collapsed；仅展开方向上抛跟随，收起不滚。
+                                    followRequest?.invoke(!collapsed)
                                 }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
