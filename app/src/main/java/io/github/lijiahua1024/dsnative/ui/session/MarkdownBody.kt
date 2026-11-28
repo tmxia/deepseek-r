@@ -646,8 +646,8 @@ private fun RenderBlock(
                 while (item != null) {
                     if (item is ListItem) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp)) {
-                            // ::marker disc ≈5.8dp centered on first 26.31dp line
-                            Box(Modifier.width(16.dp).height(26.31.dp), contentAlignment = Alignment.Center) {
+                            // ::marker disc ≈5.8dp centered on first 24dp line
+                            Box(Modifier.width(16.dp).height(24.dp), contentAlignment = Alignment.Center) {
                                 Box(Modifier.size(5.8.dp).background(c.labelSecondary, CircleShape))
                             }
                             Column(Modifier.weight(1f)) {
@@ -667,7 +667,7 @@ private fun RenderBlock(
                 while (item != null) {
                     if (item is ListItem) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp)) {
-                            Text("$i.", fontSize = 16.sp, lineHeight = 26.31.sp, color = c.labelSecondary,
+                            Text("$i.", fontSize = 15.sp, lineHeight = 24.sp, color = c.labelSecondary,
                                 style = cssLeading, modifier = Modifier.widthIn(min = 16.dp).padding(end = 4.dp))
                             Column(Modifier.weight(1f)) {
                                 var ch = item.firstChild
@@ -743,7 +743,7 @@ private fun ParagraphText(
     c: io.github.lijiahua1024.dsnative.theme.DsColors,
     mathTokens: Map<Int, ExtractedMathToken> = emptyMap(),
 ) {
-    val (styled, mathInlineContent) = rememberInlineMathPrepared(str, c, mathTokens, fontSizeSp = 16f)
+    val (styled, mathInlineContent) = rememberInlineMathPrepared(str, c, mathTokens, fontSizeSp = 15f)
     val hasInlineCodeChip = remember(styled) {
         styled.spanStyles.any { it.item.fontFamily == FontFamily.Monospace && it.end > it.start }
     }
@@ -753,7 +753,7 @@ private fun ParagraphText(
         chipPadContent + cite + mathInlineContent
     }
     Text(
-        styled, fontSize = 16.sp, lineHeight = 26.31.sp, color = c.labelPrimary,
+        styled, fontSize = 15.sp, lineHeight = 24.sp, color = c.labelPrimary,
         fontFamily = DsTheme.fontFamily,
         // CSS never trims and splits leading evenly; Compose's default trims
         // the last line's descent (~13px) which shrinks every paragraph box
