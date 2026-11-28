@@ -1565,12 +1565,16 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                         Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
                             modifier = Modifier.size(14.dp).rotate(90f))
                     } else {
-                        // ref .previewIcon：双下箭头堆叠，提示可点开全部思考
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // ref .previewIcon：上箭头朝上、下箭头朝下，14dp 紧凑堆叠（上游首项 rotate 180）
+                        Column(
+                            modifier = Modifier.height(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
                             Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
-                                modifier = Modifier.size(10.dp).rotate(90f).offset(y = 2.dp))
+                                modifier = Modifier.size(10.dp).rotate(-90f))
                             Icon(painterResource(R.drawable.ic_chevron_right), null, tint = c.thinkingDot,
-                                modifier = Modifier.size(10.dp).rotate(90f).offset(y = (-2).dp))
+                                modifier = Modifier.size(10.dp).rotate(90f))
                         }
                     }
                 }
@@ -1604,7 +1608,12 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                                     .then(if (inPreview) Modifier.verticalScroll(scrollState) else Modifier)
                                     .onSizeChanged { size -> previewOverflow = size.height > previewHeightPx }
                             ) {
-                                Text(block.thinking, fontSize = 13.sp, lineHeight = 20.sp, color = c.thinkingText)
+                                Text(
+                                    thinkingPlainText(block.thinking),
+                                    fontSize = 13.sp, lineHeight = 20.sp, color = c.thinkingText,
+                                    softWrap = true,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                                )
                             }
                             // ref .previewFade：预览超出时底部渐变淡出到会话背景
                             if (inPreview && previewOverflow) {
@@ -1625,6 +1634,18 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
         }
         Spacer(Modifier.height(areaPad))
     }
+}
+
+/**
+ * 思考正文纯文本平铺：剥离行内反引号与独立围栏行（```），避免 markdown 标记裸露；
+ * 文字内容保留，由 Text 软换行自然落排。完整结构化 markdown 渲染待真机布局验证后接入。
+ */
+private fun thinkingPlainText(raw: String): String {
+    if (raw.isEmpty()) return raw
+    val lines = raw.lineSequence().map { line ->
+        if (line.trimStart().startsWith("```")) "" else line.replace("`", "")
+    }.toList()
+    return lines.joinToString("\n").trimEnd()
 }
 
 private fun errorText(e: ReplyError): String {
