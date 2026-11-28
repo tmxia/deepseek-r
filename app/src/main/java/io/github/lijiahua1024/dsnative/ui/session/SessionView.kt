@@ -1521,10 +1521,11 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
                 androidx.compose.animation.core.tween(220, easing = discEase))
                 + androidx.compose.animation.fadeOut(
                     androidx.compose.animation.core.tween(160))) {
-            // 竖线用 matchParentSize 背景层随内容等高：不再发起 IntrinsicSize 固有测量，
-            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退。
+            // 竖线用 fillMaxHeight 背景层随内容等高：不发起 IntrinsicSize 固有测量，
+            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退；
+            // 宽度固定 1dp（matchParentSize 会把满宽约束带下来，使 width 失效而铺满整行）。
             Box {
-                Box(Modifier.matchParentSize().padding(start = 7.5.dp, top = 4.dp).width(1.dp).background(c.thinkingLine))
+                Box(Modifier.align(Alignment.TopStart).fillMaxHeight().padding(start = 7.5.dp, top = 4.dp).width(1.dp).background(c.thinkingLine))
                 Column(Modifier.padding(start = 24.dp)) {
                     IntrinsicHeightGuard {
                         Box(

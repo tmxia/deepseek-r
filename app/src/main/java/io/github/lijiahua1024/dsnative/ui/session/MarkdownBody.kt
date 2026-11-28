@@ -563,10 +563,11 @@ private fun RenderBlock(
             }
         }
         is BlockQuote -> {
-            // 竖条用 matchParentSize 背景层随内容等高：不再发起 IntrinsicSize 固有测量，
-            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退。
+            // 竖条用 fillMaxHeight 背景层随内容等高：不发起 IntrinsicSize 固有测量，
+            // 避免 intrinsic 链路把超大高度带入 Constraints 打包而触发位宽越界闪退；
+            // 宽度固定 2dp（matchParentSize 会把满宽约束带下来，使 width 失效而铺满整行）。
             Box(Modifier.fillMaxWidth()) {
-                Box(Modifier.matchParentSize().width(2.dp).background(c.labelCaption))
+                Box(Modifier.align(Alignment.TopStart).fillMaxHeight().width(2.dp).background(c.labelCaption))
                 Column(Modifier.padding(start = 14.dp)) {
                     IntrinsicHeightGuard {
                         Column {
