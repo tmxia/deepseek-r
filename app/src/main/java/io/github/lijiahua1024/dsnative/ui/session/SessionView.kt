@@ -882,17 +882,15 @@ fun UserBubble(
             // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
             // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
-            // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前的列表锚点、拉起视口。首挂不
-            // 补偿，仅响应用户手动切换。几何校正见 [ensureFoldButtonVisible] / [restorePreExpandAnchor]。
+            // 跟随口径：展开不滚动、视口保持原位；收起锚回展开前的列表锚点、拉起视口。首挂不
+            // 补偿，仅响应用户手动切换。回滚见 [restorePreExpandAnchor]。
             var userToggled by remember(msg.id) { mutableStateOf(false) }
             var preExpandAnchor by remember(msg.id) { mutableStateOf<Pair<Int, Int>?>(null) }
-            val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
             LaunchedEffect(collapsed) {
                 if (!userToggled) return@LaunchedEffect
                 userToggled = false
-                if (!collapsed) {
-                    listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
-                } else {
+                // 展开不做视口跟随：视口保持当前位置；锚点记录仅供收起回滚。
+                if (collapsed) {
                     preExpandAnchor?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
                     preExpandAnchor = null
                 }

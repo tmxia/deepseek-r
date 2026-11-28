@@ -21,7 +21,6 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -366,8 +365,8 @@ fun MarkdownBody(
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
-    // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前列表锚点、拉起视口。几何校正见
-    // [ensureFoldButtonVisible] / [restorePreExpandAnchor]。
+    // 跟随口径：展开不滚动、视口保持原位；收起锚回展开前列表锚点、拉起视口。回滚见
+    // [restorePreExpandAnchor]。
     // 事件序号作 effect key（单调递增、块内不清零），展开/收起方向单独存、不作 key。
     // 旧实现把会被块内复位的布尔标志（followExpand/followCollapse）当作 LaunchedEffect key：
     // 协程进入跟随函数挂起等帧后，标志复位提交触发 key 变化，Compose 取消正在执行的旧协程，
@@ -375,12 +374,11 @@ fun MarkdownBody(
     var preExpandAnchor by remember(itemIndex) { mutableStateOf<Pair<Int, Int>?>(null) }
     var followSeq by remember(itemIndex) { mutableStateOf(0) }
     var followExpanding by remember(itemIndex) { mutableStateOf(true) }
-    val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
     LaunchedEffect(followSeq) {
         if (followSeq == 0) return@LaunchedEffect
-        if (followExpanding) {
-            listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
-        } else {
+        // 展开不做视口跟随：新增内容向下撑开，视口保持用户当前位置，不主动上收或跳转；
+        // 展开前锚点已在 requestor 记录，仅供收起时回滚。
+        if (!followExpanding) {
             val a = preExpandAnchor
             DebugLog.log("foldAnchor", "collapse-effect idx=$itemIndex anchor=$a " +
                 "cur=(${listState.firstVisibleItemIndex},${listState.firstVisibleItemScrollOffset})")
