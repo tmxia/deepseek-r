@@ -1,6 +1,5 @@
 package io.github.lijiahua1024.dsnative.ui.session
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -486,11 +485,6 @@ private fun RenderBlock(
                 Modifier.fillMaxWidth()
                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
                     .background(c.markdownCodeBlock, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    // 流式增长时不挂尺寸动画：每帧增长都会重启 250ms 动画并触发重复测量；
-                    // 仅历史/静止内容保留折叠开合的尺寸过渡。
-                    .then(if (!streaming) {
-                        Modifier.animateContentSize(animationSpec = androidx.compose.animation.core.tween(250))
-                    } else Modifier),
             ) {
                 // ref CodeInfoRow .container: padding 6px; copy .button h28 r8 px10 gap3
                 Row(
