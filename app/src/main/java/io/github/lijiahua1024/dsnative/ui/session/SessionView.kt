@@ -882,16 +882,21 @@ fun UserBubble(
             // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
             // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
-            // 跟随口径：展开不滚动、视口保持原位；收起锚回展开前的列表锚点、拉起视口。首挂不
-            // 补偿，仅响应用户手动切换。回滚见 [restorePreExpandAnchor]。
-            var userToggled by remember(msg.id) { mutableStateOf(false) }
+            // 跟随口径与代码块一致：展开不滚动、视口保持原位；收起锚回展开前列表锚点。
+            // 事件序号作 effect key（单调递增、块内不清零），展开/收起方向单独存、不作 key；
+            // 避免把会被复位的布尔标志当 key，协程挂起等帧后标志复位触发 key 变化而被取消。
             var preExpandAnchor by remember(msg.id) { mutableStateOf<Pair<Int, Int>?>(null) }
-            LaunchedEffect(collapsed) {
-                if (!userToggled) return@LaunchedEffect
-                userToggled = false
-                // 展开不做视口跟随：视口保持当前位置；锚点记录仅供收起回滚。
-                if (collapsed) {
-                    preExpandAnchor?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
+            var followSeq by remember(msg.id) { mutableStateOf(0) }
+            var followExpanding by remember(msg.id) { mutableStateOf(true) }
+            LaunchedEffect(followSeq) {
+                if (followSeq == 0) return@LaunchedEffect
+                if (!followExpanding) {
+                    val a = preExpandAnchor
+                    val vis = listState.layoutInfo.visibleItemsInfo
+                    DebugLog.log("foldAnchor", "bubble collapse-effect idx=$itemIndex anchor=$a " +
+                        "cur=(${listState.firstVisibleItemIndex},${listState.firstVisibleItemScrollOffset}) " +
+                        "vis=${vis.firstOrNull()?.index}..${vis.lastOrNull()?.index}")
+                    a?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
                     preExpandAnchor = null
                 }
             }
@@ -939,13 +944,23 @@ fun UserBubble(
                                         indication = null,
                                     ) {
                                         // 当前为折叠态即即将展开：先记录展开前列表锚点，供收起时回滚。
-                                        if (collapsed) {
-                                            preExpandAnchor =
-                                                listState.firstVisibleItemIndex to
-                                                    listState.firstVisibleItemScrollOffset
+                                        val curIdx = listState.firstVisibleItemIndex
+                                        val curOff = listState.firstVisibleItemScrollOffset
+                                        val vis = listState.layoutInfo.visibleItemsInfo
+                                        val expanding = collapsed
+                                        if (expanding) {
+                                            preExpandAnchor = curIdx to curOff
+                                            DebugLog.log("foldAnchor", "bubble expand idx=$itemIndex " +
+                                                "recordAnchor=($curIdx,$curOff) " +
+                                                "vis=${vis.firstOrNull()?.index}..${vis.lastOrNull()?.index}")
+                                        } else {
+                                            DebugLog.log("foldAnchor", "bubble collapse idx=$itemIndex " +
+                                                "anchor=$preExpandAnchor cur=($curIdx,$curOff) " +
+                                                "vis=${vis.firstOrNull()?.index}..${vis.lastOrNull()?.index}")
                                         }
+                                        followExpanding = expanding
+                                        followSeq++
                                         collapsed = !collapsed
-                                        userToggled = true
                                     }
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center,
