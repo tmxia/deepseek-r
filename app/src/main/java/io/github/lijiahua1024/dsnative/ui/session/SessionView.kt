@@ -351,7 +351,6 @@ fun SessionView(
                                 siblingIds = siblingIdsByParent[msg.parentId].orEmpty(),
                                 uploadReply = visible.getOrNull(index + 1) as? Message.Assistant,
                                 chatStore = chatStore,
-                                fresh = isLatestTurn,
                                 onMenu = onUserMenu,
                             )
                         }
@@ -821,7 +820,6 @@ fun UserBubble(
     siblingIds: List<String>,
     uploadReply: Message.Assistant?,
     chatStore: ChatStore,
-    fresh: Boolean = false,
     onMenu: (Message.User, androidx.compose.ui.geometry.Rect) -> Unit = { _, _ -> },
 ) {
     val c = DsTheme.colors
@@ -866,10 +864,10 @@ fun UserBubble(
         if (msg.content.isNotEmpty()) {
             // ref UserMessage: FOLD_LINES=4，按字符宽度估算行数，超过 4 行才显示折叠按钮
             val needsFold = remember(msg.content) { estimateUserBubbleLines(msg.content) > 4 }
-            // 折叠规则：默认态按轮次——最新一轮（fresh）初始展开，更早历史轮次初始折叠。
-            // 折叠按钮对所有轮次都可用，用户可自由展开/收起；手动选择优先并跨重组/回收保留。
-            // key 只取消息 id：重发会生成全新消息 id，新气泡按自身轮次取默认态，不继承旧手动态。
-            var collapsed by rememberSaveable(msg.id) { mutableStateOf(!fresh) }
+            // 折叠默认态与轮次无关：超长气泡（needsFold）初始折叠，短气泡不折叠；
+            // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
+            // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
+            var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
             val bubbleShape = RoundedCornerShape(22.dp)
             Box(Modifier.fillMaxWidth().padding(start = 48.dp, end = 16.dp)) {
@@ -934,9 +932,9 @@ fun UserBubble(
     }
 }
 
-/** ref estimateLineCount：气泡可用宽度 280px、字号 15；全角/中日韩按 1em，拉丁/数字/符号按 0.55em 估行。 */
+/** ref estimateLineCount：按 360dp 屏宽核算气泡文本可用宽 ≈266dp、字号 15；全角/中日韩按 1em，拉丁/数字/符号按 0.55em 估行。 */
 private fun estimateUserBubbleLines(text: String, fontSize: Int = 15): Int {
-    val charsPerLine = 280.0 / fontSize
+    val charsPerLine = 266.0 / fontSize
     var lines = 1
     var current = 0.0
     fun isWide(ch: Char): Boolean {
