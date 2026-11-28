@@ -585,7 +585,7 @@ fun ChatInput(settings: SettingsStore, chatStore: ChatStore) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
-                        Modifier.size(32.dp).clip(CircleShape)
+                        Modifier.size(30.dp).clip(CircleShape)
                             .background(c.buttonPrimaryFill)
                             .clickable {
                                 if (isStreaming) chatStore.stopReply(activeId!!)

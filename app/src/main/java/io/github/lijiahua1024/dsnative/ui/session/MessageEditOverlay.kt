@@ -452,7 +452,7 @@ fun MessageEditOverlay(
                 Spacer(Modifier.width(5.dp))
                 val disabledSendBg = if (c.dark) Color(0xFF4D6BFE).copy(alpha = 0.35f) else Color(0xFFB3C5FF)
                 Box(
-                    Modifier.size(32.dp)
+                    Modifier.size(30.dp)
                         .clip(CircleShape)
                         .background(if (canSend) c.buttonPrimaryFill else disabledSendBg)
                         .clickable(enabled = canSend) {
