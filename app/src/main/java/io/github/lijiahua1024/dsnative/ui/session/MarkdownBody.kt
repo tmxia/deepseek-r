@@ -566,8 +566,12 @@ private fun RenderBlock(
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 Box(Modifier.width(2.dp).fillMaxHeight().background(c.labelCaption))
                 Column(Modifier.padding(start = 14.dp)) {
-                    var ch = node.firstChild
-                    while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens, fresh); ch = ch.next }
+                    IntrinsicHeightGuard {
+                        Column {
+                            var ch = node.firstChild
+                            while (ch != null) { RenderBlock(ch, c, uriHandler, streaming, mathTokens, fresh); ch = ch.next }
+                        }
+                    }
                 }
             }
         }
@@ -961,25 +965,27 @@ private fun RenderTableGrid(
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             contentAlignment = Alignment.CenterStart,
                         ) {
-                            if (cell != null) {
-                                val cellAnnotated = remember(cell, c.dark, uriHandler) {
-                                    inlineText(cell, c, uriHandler)
+                            IntrinsicHeightGuard {
+                                if (cell != null) {
+                                    val cellAnnotated = remember(cell, c.dark, uriHandler) {
+                                        inlineText(cell, c, uriHandler)
+                                    }
+                                    val (cellStr, cellInline) = rememberInlineMathPrepared(
+                                        cellAnnotated,
+                                        c,
+                                        mathTokens,
+                                        fontSizeSp = 15f,
+                                    )
+                                    Text(
+                                        cellStr,
+                                        fontSize = 15.sp,
+                                        lineHeight = 25.sp,
+                                        fontWeight = if (isHeader) FontWeight.Medium else FontWeight.Normal,
+                                        style = cssLeading,
+                                        color = c.labelPrimary,
+                                        inlineContent = chipPadContent + citeContent(c) + cellInline,
+                                    )
                                 }
-                                val (cellStr, cellInline) = rememberInlineMathPrepared(
-                                    cellAnnotated,
-                                    c,
-                                    mathTokens,
-                                    fontSizeSp = 15f,
-                                )
-                                Text(
-                                    cellStr,
-                                    fontSize = 15.sp,
-                                    lineHeight = 25.sp,
-                                    fontWeight = if (isHeader) FontWeight.Medium else FontWeight.Normal,
-                                    style = cssLeading,
-                                    color = c.labelPrimary,
-                                    inlineContent = chipPadContent + citeContent(c) + cellInline,
-                                )
                             }
                         }
                         if (colIdx < cols - 1) {

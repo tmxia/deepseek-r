@@ -1525,29 +1525,31 @@ fun ThinkingBlock(block: ReplyBlock.Thinking, msg: Message.Assistant, foldThinki
             Row(Modifier.height(IntrinsicSize.Min)) {
                 Box(Modifier.padding(start = 7.5.dp, top = 4.dp).width(1.dp).fillMaxHeight().background(c.thinkingLine))
                 Column(Modifier.padding(start = 24.dp)) {
-                    Box(
-                        Modifier.then(
-                            if (inPreview) Modifier.heightIn(max = 128.dp) else Modifier
-                        )
-                    ) {
-                        Column(
-                            Modifier
-                                .then(if (inPreview) Modifier.verticalScroll(scrollState) else Modifier)
-                                .onSizeChanged { size -> previewOverflow = size.height > previewHeightPx }
+                    IntrinsicHeightGuard {
+                        Box(
+                            Modifier.then(
+                                if (inPreview) Modifier.heightIn(max = 128.dp) else Modifier
+                            )
                         ) {
-                            Text(block.thinking, fontSize = 15.sp, lineHeight = 24.sp, color = c.thinkingText)
-                        }
-                        // ref .previewFade：预览超出时底部渐变淡出到会话背景
-                        if (inPreview && previewOverflow) {
-                            Box(
-                                Modifier.matchParentSize().background(
-                                    Brush.verticalGradient(
-                                        0f to Color.Transparent,
-                                        0.65f to Color.Transparent,
-                                        1f to c.bgBase
+                            Column(
+                                Modifier
+                                    .then(if (inPreview) Modifier.verticalScroll(scrollState) else Modifier)
+                                    .onSizeChanged { size -> previewOverflow = size.height > previewHeightPx }
+                            ) {
+                                Text(block.thinking, fontSize = 15.sp, lineHeight = 24.sp, color = c.thinkingText)
+                            }
+                            // ref .previewFade：预览超出时底部渐变淡出到会话背景
+                            if (inPreview && previewOverflow) {
+                                Box(
+                                    Modifier.matchParentSize().background(
+                                        Brush.verticalGradient(
+                                            0f to Color.Transparent,
+                                            0.65f to Color.Transparent,
+                                            1f to c.bgBase
+                                        )
                                     )
                                 )
-                            )
+                            }
                         }
                     }
                 }
