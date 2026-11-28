@@ -1214,6 +1214,10 @@ fun AssistantView(
     onShare: () -> Unit = {},
 ) {
     val c = DsTheme.colors
+    // 重组计数：调试快照 count 即窗口内重组次数，辅助定位流式中前部条目是否被重复重组。
+    val recomp = remember { intArrayOf(0) }
+    recomp[0]++
+    FrameTrace.record("assistantRecomp", 1L, "n=${recomp[0]}")
     val ctx = LocalContext.current
     val sources = remember(msg.blocks) { searchSources(msg.blocks) }
     val openSources = LocalOpenSources.current

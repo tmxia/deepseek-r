@@ -324,6 +324,10 @@ fun MarkdownBody(
     itemIndex: Int,
 ) {
     val c = DsTheme.colors
+    // 重组计数：调试快照 count 即窗口内重组次数，用于判断前部稳定块是否被重复重组。
+    val recomp = remember { intArrayOf(0) }
+    recomp[0]++
+    FrameTrace.record("mdBodyRecomp", 1L, "n=${recomp[0]}")
     val baseUriHandler = LocalUriHandler.current
     val linkCtx = androidx.compose.ui.platform.LocalContext.current
     val dark = c.dark
