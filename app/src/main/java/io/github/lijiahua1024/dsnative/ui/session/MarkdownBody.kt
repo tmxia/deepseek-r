@@ -357,11 +357,11 @@ fun MarkdownBody(
     // 后台 AST 滞后于最新文本的部分，先按纯文本渐进平铺，解析结果回来后再由结构化 AST 接管。
     val heldText = parsedChunks.joinToString("") { it.source }
     val rawTail = if (streaming && text.length > heldText.length) text.substring(heldText.length) else ""
-    // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前顶部位置、拉起视口。几何校正见
-    // [ensureFoldButtonVisible] / [anchorItemTopTo]。
+    // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前列表锚点、拉起视口。几何校正见
+    // [ensureFoldButtonVisible] / [restorePreExpandAnchor]。
     var followExpand by remember(itemIndex) { mutableStateOf(false) }
     var followCollapse by remember(itemIndex) { mutableStateOf(false) }
-    var preExpandTop by remember(itemIndex) { mutableStateOf<Int?>(null) }
+    var preExpandAnchor by remember(itemIndex) { mutableStateOf<Pair<Int, Int>?>(null) }
     val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
     LaunchedEffect(followExpand) {
         if (!followExpand) return@LaunchedEffect
@@ -371,14 +371,14 @@ fun MarkdownBody(
     LaunchedEffect(followCollapse) {
         if (!followCollapse) return@LaunchedEffect
         followCollapse = false
-        preExpandTop?.let { listState.anchorItemTopTo(itemIndex, it) }
-        preExpandTop = null
+        preExpandAnchor?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
+        preExpandAnchor = null
     }
     val followRequestor = remember(itemIndex) {
         ViewportFollowRequestor { expanding ->
             if (expanding) {
-                preExpandTop = listState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.index == itemIndex }?.offset
+                preExpandAnchor =
+                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
                 followExpand = true
             } else {
                 followCollapse = true

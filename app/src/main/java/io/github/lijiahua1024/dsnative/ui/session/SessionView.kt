@@ -879,10 +879,10 @@ fun UserBubble(
             // 折叠按钮对所有轮次可用，用户可自由展开/收起，手动选择优先并跨重组/回收保留。
             // key 只取消息 id：重发生成全新消息 id，新气泡按自身内容取默认态，不继承旧手动态。
             var collapsed by rememberSaveable(msg.id) { mutableStateOf(needsFold) }
-            // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前的顶部位置、拉起视口。首挂不
-            // 补偿，仅响应用户手动切换。几何校正见 [ensureFoldButtonVisible] / [anchorItemTopTo]。
+            // 跟随口径：展开锚定折叠按钮（底部可见）；收起锚回展开前的列表锚点、拉起视口。首挂不
+            // 补偿，仅响应用户手动切换。几何校正见 [ensureFoldButtonVisible] / [restorePreExpandAnchor]。
             var userToggled by remember(msg.id) { mutableStateOf(false) }
-            var preExpandTop by remember(msg.id) { mutableStateOf<Int?>(null) }
+            var preExpandAnchor by remember(msg.id) { mutableStateOf<Pair<Int, Int>?>(null) }
             val followMarginPx = with(LocalDensity.current) { 12.dp.toPx() }
             LaunchedEffect(collapsed) {
                 if (!userToggled) return@LaunchedEffect
@@ -890,8 +890,8 @@ fun UserBubble(
                 if (!collapsed) {
                     listState.ensureFoldButtonVisible(itemIndex, followMarginPx)
                 } else {
-                    preExpandTop?.let { listState.anchorItemTopTo(itemIndex, it) }
-                    preExpandTop = null
+                    preExpandAnchor?.let { (idx, off) -> listState.restorePreExpandAnchor(idx, off) }
+                    preExpandAnchor = null
                 }
             }
             // 官方安卓气泡四角等圆角；不再沿用 web 版右下角 4dp 尖角尾。
@@ -937,10 +937,11 @@ fun UserBubble(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null,
                                     ) {
-                                        // 当前为折叠态即即将展开：先记录展开前顶部位置，供收起时锚回。
+                                        // 当前为折叠态即即将展开：先记录展开前列表锚点，供收起时回滚。
                                         if (collapsed) {
-                                            preExpandTop = listState.layoutInfo.visibleItemsInfo
-                                                .firstOrNull { it.index == itemIndex }?.offset
+                                            preExpandAnchor =
+                                                listState.firstVisibleItemIndex to
+                                                    listState.firstVisibleItemScrollOffset
                                         }
                                         collapsed = !collapsed
                                         userToggled = true
